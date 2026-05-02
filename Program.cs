@@ -7,7 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Database
 var dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
-var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "5433";
+var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "5432";
 var dbName = Environment.GetEnvironmentVariable("DB_DATABASE") ?? "automailer";
 var dbUser = Environment.GetEnvironmentVariable("DB_USERNAME") ?? "automailer";
 var dbPass = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "automailer_dev";
