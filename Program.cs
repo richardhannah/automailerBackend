@@ -6,11 +6,21 @@ using Microsoft.EntityFrameworkCore;
 var builder = WebApplication.CreateBuilder(args);
 
 // Database
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var dbHost = Environment.GetEnvironmentVariable("DB_HOST") ?? "localhost";
+var dbPort = Environment.GetEnvironmentVariable("DB_PORT") ?? "5433";
+var dbName = Environment.GetEnvironmentVariable("DB_DATABASE") ?? "automailer";
+var dbUser = Environment.GetEnvironmentVariable("DB_USERNAME") ?? "automailer";
+var dbPass = Environment.GetEnvironmentVariable("DB_PASSWORD") ?? "automailer_dev";
+var connectionString = $"Host={dbHost};Port={dbPort};Database={dbName};Username={dbUser};Password={dbPass}";
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 
 // Services
-var brevoSettings = builder.Configuration.GetSection("Brevo").Get<BrevoSettings>()!;
+var brevoSettings = new BrevoSettings
+{
+    ApiKey = Environment.GetEnvironmentVariable("BREVO_API_KEY") ?? "",
+    SenderName = Environment.GetEnvironmentVariable("BREVO_SENDER_NAME") ?? "AutoMailer",
+    SenderEmail = Environment.GetEnvironmentVariable("BREVO_SENDER_EMAIL") ?? ""
+};
 builder.Services.AddSingleton(brevoSettings);
 builder.Services.AddHttpClient<BrevoClient>();
 builder.Services.AddScoped<EmailService>();
