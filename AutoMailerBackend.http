@@ -1,0 +1,6 @@
+@AutoMailerBackend_HostAddress = http://localhost:5172
+
+GET {{AutoMailerBackend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

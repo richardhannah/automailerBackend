@@ -1,0 +1,24 @@
+services:
+  api:
+    build: .
+    ports:
+      - "5172:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=automailer;Username=automailer;Password=automailer_dev
+    depends_on:
+      - db
+
+  db:
+    image: postgres:17
+    ports:
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=automailer
+      - POSTGRES_PASSWORD=automailer_dev
+      - POSTGRES_DB=automailer
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
