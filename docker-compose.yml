@@ -2,7 +2,7 @@ services:
   api:
     build: .
     ports:
-      - "5172:8080"
+      - "8080:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=automailer;Username=automailer;Password=automailer_dev
