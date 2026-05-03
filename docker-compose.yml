@@ -5,7 +5,14 @@ services:
       - "8080:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=automailer;Username=automailer;Password=automailer_dev
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_DATABASE=automailer
+      - DB_USERNAME=automailer
+      - DB_PASSWORD=automailer_dev
+      - BREVO_API_KEY=${BREVO_API_KEY:-}
+      - BREVO_SENDER_NAME=${BREVO_SENDER_NAME:-AutoMailer}
+      - BREVO_SENDER_EMAIL=${BREVO_SENDER_EMAIL:-}
     depends_on:
       - db
 

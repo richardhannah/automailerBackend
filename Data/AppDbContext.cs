@@ -10,6 +10,7 @@ public class AppDbContext : DbContext
     public DbSet<User> Users => Set<User>();
     public DbSet<Login> Logins => Set<Login>();
     public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -33,6 +34,12 @@ public class AppDbContext : DbContext
             entity.HasKey(c => c.CustomerId);
             entity.HasIndex(c => c.CustomerGuid).IsUnique();
             entity.HasIndex(c => c.Email);
+        });
+
+        modelBuilder.Entity<EmailTemplate>(entity =>
+        {
+            entity.HasKey(t => t.EmailTemplateId);
+            entity.HasIndex(t => t.EmailTemplateGuid).IsUnique();
         });
 
         // Seed default admin user (password: admin)

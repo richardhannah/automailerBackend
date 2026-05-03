@@ -44,7 +44,9 @@ public class CustomersController : ControllerBase
             FirstName = request.FirstName,
             LastName = request.LastName,
             Email = request.Email,
-            UserCode = request.UserCode,
+            IptvUser = request.IptvUser,
+            IptvPassword = request.IptvPassword,
+            Notes = request.Notes,
             ExpirationDate = request.ExpirationDate,
             FollowUp = request.FollowUp
         };
@@ -65,7 +67,9 @@ public class CustomersController : ControllerBase
         customer.FirstName = request.FirstName;
         customer.LastName = request.LastName;
         customer.Email = request.Email;
-        customer.UserCode = request.UserCode;
+        customer.IptvUser = request.IptvUser;
+        customer.IptvPassword = request.IptvPassword;
+        customer.Notes = request.Notes;
         customer.ExpirationDate = request.ExpirationDate;
         customer.FollowUp = request.FollowUp;
 
@@ -92,7 +96,9 @@ public class CreateCustomerRequest
     public required string FirstName { get; set; }
     public required string LastName { get; set; }
     public required string Email { get; set; }
-    public required string UserCode { get; set; }
+    public required string IptvUser { get; set; }
+    public string IptvPassword { get; set; } = "";
+    public string Notes { get; set; } = "";
     public DateOnly? ExpirationDate { get; set; }
     public bool FollowUp { get; set; }
 }
@@ -102,7 +108,9 @@ public class UpdateCustomerRequest
     public required string FirstName { get; set; }
     public required string LastName { get; set; }
     public required string Email { get; set; }
-    public required string UserCode { get; set; }
+    public required string IptvUser { get; set; }
+    public string IptvPassword { get; set; } = "";
+    public string Notes { get; set; } = "";
     public DateOnly? ExpirationDate { get; set; }
     public bool FollowUp { get; set; }
 }
