@@ -25,6 +25,7 @@ builder.Services.AddSingleton(brevoSettings);
 builder.Services.AddHttpClient<BrevoClient>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<LoginService>();
+builder.Services.AddHostedService<ReportWorker>();
 
 builder.Services.AddCors(options =>
 {
