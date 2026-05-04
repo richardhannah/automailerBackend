@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
     public DbSet<ReportingSetting> ReportingSettings => Set<ReportingSetting>();
+    public DbSet<Enquiry> Enquiries => Set<Enquiry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -50,6 +51,14 @@ public class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(r => r.EmailTemplateId)
                   .IsRequired(false);
+        });
+
+        modelBuilder.Entity<Enquiry>(entity =>
+        {
+            entity.HasKey(e => e.EnquiryId);
+            entity.Property(e => e.Email).IsRequired();
+            entity.Property(e => e.Message).IsRequired();
+            entity.Property(e => e.DateReceived).IsRequired();
         });
 
         // Seed default admin user (password: admin)
