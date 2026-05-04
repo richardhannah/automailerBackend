@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
     public DbSet<Login> Logins => Set<Login>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
+    public DbSet<ReportingSetting> ReportingSettings => Set<ReportingSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -40,6 +41,15 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(t => t.EmailTemplateId);
             entity.HasIndex(t => t.EmailTemplateGuid).IsUnique();
+        });
+
+        modelBuilder.Entity<ReportingSetting>(entity =>
+        {
+            entity.HasKey(r => r.ReportingSettingId);
+            entity.HasOne(r => r.EmailTemplate)
+                  .WithMany()
+                  .HasForeignKey(r => r.EmailTemplateId)
+                  .IsRequired(false);
         });
 
         // Seed default admin user (password: admin)
