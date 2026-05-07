@@ -5,15 +5,15 @@ namespace AutoMailerBackend.Services;
 
 public class EmailService
 {
-    private readonly BrevoClient _brevoClient;
+    private readonly Smtp2GoClient _smtp2GoClient;
 
-    public EmailService(BrevoClient brevoClient)
+    public EmailService(Smtp2GoClient smtp2GoClient)
     {
-        _brevoClient = brevoClient;
+        _smtp2GoClient = smtp2GoClient;
     }
 
-    public async Task<BrevoResponse> SendEmailAsync(SendEmailRequest request)
+    public async Task<Smtp2GoResponse> SendEmailAsync(SendEmailRequest request)
     {
-        return await _brevoClient.SendEmailAsync(request.To, request.ToName, request.Subject, request.Body);
+        return await _smtp2GoClient.SendEmailAsync(request.To, request.ToName, request.Subject, request.Body);
     }
 }

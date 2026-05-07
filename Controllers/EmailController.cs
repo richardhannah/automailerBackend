@@ -24,8 +24,8 @@ public class EmailController : ControllerBase
         var result = await _emailService.SendEmailAsync(request);
 
         if (result.Success)
-            return Ok(new { message = "Email sent successfully!", brevoResponse = result.Body });
+            return Ok(new { message = "Email sent successfully!", response = result.Body });
 
-        return StatusCode(result.StatusCode, new { error = "Failed to send email", brevoResponse = result.Body });
+        return StatusCode(result.StatusCode, new { error = "Failed to send email", response = result.Body });
     }
 }

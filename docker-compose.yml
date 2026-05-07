@@ -10,9 +10,9 @@ services:
       - DB_DATABASE=automailer
       - DB_USERNAME=automailer
       - DB_PASSWORD=automailer_dev
-      - BREVO_API_KEY=${BREVO_API_KEY:-}
-      - BREVO_SENDER_NAME=${BREVO_SENDER_NAME:-AutoMailer}
-      - BREVO_SENDER_EMAIL=${BREVO_SENDER_EMAIL:-}
+      - SMTP2GO_API_KEY=${SMTP2GO_API_KEY:-}
+      - SMTP2GO_SENDER_NAME=${SMTP2GO_SENDER_NAME:-AutoMailer}
+      - SMTP2GO_SENDER_EMAIL=${SMTP2GO_SENDER_EMAIL:-}
     depends_on:
       - db
 

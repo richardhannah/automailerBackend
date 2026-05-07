@@ -39,7 +39,7 @@ public class ReportWorker : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var brevoClient = scope.ServiceProvider.GetRequiredService<BrevoClient>();
+        var smtp2GoClient = scope.ServiceProvider.GetRequiredService<Smtp2GoClient>();
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var cutoff = today.AddDays(7);
@@ -102,7 +102,7 @@ public class ReportWorker : BackgroundService
             if (!string.IsNullOrEmpty(template.BodyHtml))
                 htmlBody = TemplateRenderer.Render(template.BodyHtml, vars, collections);
 
-            var result = await brevoClient.SendEmailAsync(
+            var result = await smtp2GoClient.SendEmailAsync(
                 setting.EmailAddress,
                 setting.Name,
                 subject,

@@ -15,14 +15,14 @@ var connectionString = $"Host={dbHost};Port={dbPort};Database={dbName};Username=
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 
 // Services
-var brevoSettings = new BrevoSettings
+var smtp2GoSettings = new Smtp2GoSettings
 {
-    ApiKey = Environment.GetEnvironmentVariable("BREVO_API_KEY") ?? "",
-    SenderName = Environment.GetEnvironmentVariable("BREVO_SENDER_NAME") ?? "AutoMailer",
-    SenderEmail = Environment.GetEnvironmentVariable("BREVO_SENDER_EMAIL") ?? ""
+    ApiKey = Environment.GetEnvironmentVariable("SMTP2GO_API_KEY") ?? "",
+    SenderName = Environment.GetEnvironmentVariable("SMTP2GO_SENDER_NAME") ?? "AutoMailer",
+    SenderEmail = Environment.GetEnvironmentVariable("SMTP2GO_SENDER_EMAIL") ?? ""
 };
-builder.Services.AddSingleton(brevoSettings);
-builder.Services.AddHttpClient<BrevoClient>();
+builder.Services.AddSingleton(smtp2GoSettings);
+builder.Services.AddHttpClient<Smtp2GoClient>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<LoginService>();
 builder.Services.AddHostedService<ReportWorker>();

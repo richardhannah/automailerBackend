@@ -8,7 +8,7 @@ public class BrevoSettings
 }
 
 public class BrevoClient
-{
+{https://app.smtp2go.com/sending/verified_senders/#edit/ronmar.com.au
     private readonly HttpClient _httpClient;
     private readonly BrevoSettings _settings;
 
