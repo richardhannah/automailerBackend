@@ -14,6 +14,11 @@ public class EmailService
 
     public async Task<Smtp2GoResponse> SendEmailAsync(SendEmailRequest request)
     {
+        var isHtml = request.Body.TrimStart().StartsWith("<", StringComparison.Ordinal);
+
+        if (isHtml)
+            return await _smtp2GoClient.SendEmailAsync(request.To, request.ToName, request.Subject, "", request.Body);
+
         return await _smtp2GoClient.SendEmailAsync(request.To, request.ToName, request.Subject, request.Body);
     }
 }
