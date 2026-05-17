@@ -1,8 +1,7 @@
 using AutoMailerBackend.Auth;
-using AutoMailerBackend.Data;
 using AutoMailerBackend.Models;
+using AutoMailerBackend.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace AutoMailerBackend.Controllers;
 
@@ -10,11 +9,11 @@ namespace AutoMailerBackend.Controllers;
 [Route("api/[controller]")]
 public class EnquiriesController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly EnquiriesService _enquiriesService;
 
-    public EnquiriesController(AppDbContext db)
+    public EnquiriesController(EnquiriesService enquiriesService)
     {
-        _db = db;
+        _enquiriesService = enquiriesService;
     }
 
     [HttpGet]
@@ -22,7 +21,7 @@ public class EnquiriesController : ControllerBase
     [RequireRole(UserRole.Admin)]
     public async Task<IActionResult> GetAll()
     {
-        var enquiries = await _db.Enquiries.OrderByDescending(e => e.DateReceived).ToListAsync();
+        var enquiries = await _enquiriesService.GetAllAsync();
         return Ok(enquiries);
     }
 
@@ -31,7 +30,7 @@ public class EnquiriesController : ControllerBase
     [RequireRole(UserRole.Admin)]
     public async Task<IActionResult> GetById(int id)
     {
-        var enquiry = await _db.Enquiries.FindAsync(id);
+        var enquiry = await _enquiriesService.GetByIdAsync(id);
         if (enquiry == null)
             return NotFound(new { error = "Enquiry not found" });
 
@@ -41,17 +40,7 @@ public class EnquiriesController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateEnquiryRequest request)
     {
-        var enquiry = new Enquiry
-        {
-            Email = request.Email,
-            PhoneNumber = request.PhoneNumber,
-            DateReceived = DateTime.UtcNow,
-            Message = request.Message
-        };
-
-        _db.Enquiries.Add(enquiry);
-        await _db.SaveChangesAsync();
-
+        var enquiry = await _enquiriesService.CreateAsync(request);
         return CreatedAtAction(nameof(GetById), new { id = enquiry.EnquiryId }, enquiry);
     }
 
@@ -60,12 +49,9 @@ public class EnquiriesController : ControllerBase
     [RequireRole(UserRole.Admin)]
     public async Task<IActionResult> Delete(int id)
     {
-        var enquiry = await _db.Enquiries.FindAsync(id);
-        if (enquiry == null)
+        var deleted = await _enquiriesService.DeleteAsync(id);
+        if (!deleted)
             return NotFound(new { error = "Enquiry not found" });
-
-        _db.Enquiries.Remove(enquiry);
-        await _db.SaveChangesAsync();
 
         return Ok(new { message = "Enquiry deleted" });
     }

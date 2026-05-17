@@ -24,6 +24,7 @@ var smtp2GoSettings = new Smtp2GoSettings
 builder.Services.AddSingleton(smtp2GoSettings);
 builder.Services.AddHttpClient<Smtp2GoClient>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<EnquiriesService>();
 builder.Services.AddScoped<LoginService>();
 builder.Services.AddHostedService<ReportWorker>();
 
