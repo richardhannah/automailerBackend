@@ -31,7 +31,7 @@ public class LoginService
         };
     }
 
-    public async Task<RegisterResult> RegisterAsync(string username, string password)
+    public async Task<RegisterResult> RegisterAsync(string username, string password, string email, string? phone)
     {
         var exists = await _db.Logins.AnyAsync(l => l.Username == username);
         if (exists)
@@ -51,8 +51,17 @@ public class LoginService
             Token = Guid.NewGuid()
         };
 
+        var newCustomer = new Customer
+        {
+            FirstName = username,
+            Email = email,
+            Phone = phone ?? "",
+            Notes = "New customer/prospect - registered via sign-up"
+        };
+
         _db.Users.Add(newUser);
         _db.Logins.Add(newLogin);
+        _db.Customers.Add(newCustomer);
         await _db.SaveChangesAsync();
 
         return new RegisterResult

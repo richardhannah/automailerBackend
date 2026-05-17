@@ -44,6 +44,7 @@ public class CustomersController : ControllerBase
             FirstName = request.FirstName,
             LastName = request.LastName,
             Email = request.Email,
+            Phone = request.Phone,
             IptvUser = request.IptvUser,
             IptvPassword = request.IptvPassword,
             Notes = request.Notes,
@@ -67,6 +68,7 @@ public class CustomersController : ControllerBase
         customer.FirstName = request.FirstName;
         customer.LastName = request.LastName;
         customer.Email = request.Email;
+        customer.Phone = request.Phone;
         customer.IptvUser = request.IptvUser;
         customer.IptvPassword = request.IptvPassword;
         customer.Notes = request.Notes;
@@ -96,6 +98,7 @@ public class CreateCustomerRequest
     public required string FirstName { get; set; }
     public required string LastName { get; set; }
     public required string Email { get; set; }
+    public string Phone { get; set; } = "";
     public required string IptvUser { get; set; }
     public string IptvPassword { get; set; } = "";
     public string Notes { get; set; } = "";
@@ -108,6 +111,7 @@ public class UpdateCustomerRequest
     public required string FirstName { get; set; }
     public required string LastName { get; set; }
     public required string Email { get; set; }
+    public string Phone { get; set; } = "";
     public required string IptvUser { get; set; }
     public string IptvPassword { get; set; } = "";
     public string Notes { get; set; } = "";

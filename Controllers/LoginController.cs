@@ -28,9 +28,9 @@ public class LoginController : ControllerBase
     }
 
     [HttpPost("register")]
-    public async Task<IActionResult> Register([FromBody] LoginRequest request)
+    public async Task<IActionResult> Register([FromBody] RegisterRequest request)
     {
-        var result = await _loginService.RegisterAsync(request.Username, request.Password);
+        var result = await _loginService.RegisterAsync(request.Username, request.Password, request.Email, request.Phone);
 
         if (!result.Success)
             return Conflict(new { error = result.Error });
@@ -57,4 +57,12 @@ public class LoginRequest
 {
     public required string Username { get; set; }
     public required string Password { get; set; }
+}
+
+public class RegisterRequest
+{
+    public required string Username { get; set; }
+    public required string Password { get; set; }
+    public required string Email { get; set; }
+    public string? Phone { get; set; }
 }
