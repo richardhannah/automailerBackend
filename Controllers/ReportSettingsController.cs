@@ -1,8 +1,7 @@
 using AutoMailerBackend.Auth;
-using AutoMailerBackend.Data;
 using AutoMailerBackend.Models;
+using AutoMailerBackend.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace AutoMailerBackend.Controllers;
 
@@ -12,19 +11,17 @@ namespace AutoMailerBackend.Controllers;
 [RequireRole(UserRole.Admin)]
 public class ReportSettingsController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly ReportSettingsService _service;
 
-    public ReportSettingsController(AppDbContext db)
+    public ReportSettingsController(ReportSettingsService service)
     {
-        _db = db;
+        _service = service;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var settings = await _db.ReportingSettings
-            .Include(r => r.EmailTemplate)
-            .ToListAsync();
+        var settings = await _service.GetAllAsync();
 
         var result = settings.Select(r => new
         {
@@ -47,9 +44,7 @@ public class ReportSettingsController : ControllerBase
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var setting = await _db.ReportingSettings
-            .Include(r => r.EmailTemplate)
-            .FirstOrDefaultAsync(r => r.ReportingSettingId == id);
+        var setting = await _service.GetByIdAsync(id);
 
         if (setting == null)
             return NotFound(new { error = "Report setting not found" });
@@ -67,24 +62,12 @@ public class ReportSettingsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateReportSettingRequest request)
     {
-        if (request.EmailTemplateId.HasValue)
-        {
-            var templateExists = await _db.EmailTemplates
-                .AnyAsync(t => t.EmailTemplateId == request.EmailTemplateId.Value);
-            if (!templateExists)
-                return BadRequest(new { error = "Email template not found" });
-        }
+        var result = await _service.CreateAsync(request.Name, request.EmailAddress, request.EmailTemplateId);
 
-        var setting = new ReportingSetting
-        {
-            Name = request.Name,
-            EmailAddress = request.EmailAddress,
-            EmailTemplateId = request.EmailTemplateId
-        };
+        if (!result.Success)
+            return BadRequest(new { error = result.Error });
 
-        _db.ReportingSettings.Add(setting);
-        await _db.SaveChangesAsync();
-
+        var setting = result.Setting!;
         return CreatedAtAction(nameof(GetById), new { id = setting.ReportingSettingId }, new
         {
             setting.ReportingSettingId,
@@ -97,25 +80,15 @@ public class ReportSettingsController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateReportSettingRequest request)
     {
-        var setting = await _db.ReportingSettings
-            .FirstOrDefaultAsync(r => r.ReportingSettingId == id);
+        var result = await _service.UpdateAsync(id, request.Name, request.EmailAddress, request.EmailTemplateId);
 
-        if (setting == null)
+        if (!result.Found)
             return NotFound(new { error = "Report setting not found" });
 
-        if (request.EmailTemplateId.HasValue)
-        {
-            var templateExists = await _db.EmailTemplates
-                .AnyAsync(t => t.EmailTemplateId == request.EmailTemplateId.Value);
-            if (!templateExists)
-                return BadRequest(new { error = "Email template not found" });
-        }
+        if (!result.Success)
+            return BadRequest(new { error = result.Error });
 
-        setting.Name = request.Name;
-        setting.EmailAddress = request.EmailAddress;
-        setting.EmailTemplateId = request.EmailTemplateId;
-
-        await _db.SaveChangesAsync();
+        var setting = result.Setting!;
         return Ok(new
         {
             setting.ReportingSettingId,
@@ -128,14 +101,10 @@ public class ReportSettingsController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var setting = await _db.ReportingSettings
-            .FirstOrDefaultAsync(r => r.ReportingSettingId == id);
+        var deleted = await _service.DeleteAsync(id);
 
-        if (setting == null)
+        if (!deleted)
             return NotFound(new { error = "Report setting not found" });
-
-        _db.ReportingSettings.Remove(setting);
-        await _db.SaveChangesAsync();
 
         return Ok(new { message = "Report setting deleted" });
     }

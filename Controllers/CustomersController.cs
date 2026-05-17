@@ -1,8 +1,7 @@
 using AutoMailerBackend.Auth;
-using AutoMailerBackend.Data;
 using AutoMailerBackend.Models;
+using AutoMailerBackend.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace AutoMailerBackend.Controllers;
 
@@ -12,24 +11,24 @@ namespace AutoMailerBackend.Controllers;
 [RequireRole(UserRole.Admin)]
 public class CustomersController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly CustomersService _service;
 
-    public CustomersController(AppDbContext db)
+    public CustomersController(CustomersService service)
     {
-        _db = db;
+        _service = service;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var customers = await _db.Customers.ToListAsync();
+        var customers = await _service.GetAllAsync();
         return Ok(customers);
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var customer = await _db.Customers.FindAsync(id);
+        var customer = await _service.GetByIdAsync(id);
         if (customer == null)
             return NotFound(new { error = "Customer not found" });
 
@@ -52,8 +51,7 @@ public class CustomersController : ControllerBase
             FollowUp = request.FollowUp
         };
 
-        _db.Customers.Add(customer);
-        await _db.SaveChangesAsync();
+        await _service.CreateAsync(customer);
 
         return CreatedAtAction(nameof(GetById), new { id = customer.CustomerId }, customer);
     }
@@ -61,33 +59,32 @@ public class CustomersController : ControllerBase
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateCustomerRequest request)
     {
-        var customer = await _db.Customers.FindAsync(id);
+        var customer = await _service.UpdateAsync(id, c =>
+        {
+            c.FirstName = request.FirstName;
+            c.LastName = request.LastName;
+            c.Email = request.Email;
+            c.Phone = request.Phone;
+            c.IptvUser = request.IptvUser;
+            c.IptvPassword = request.IptvPassword;
+            c.Notes = request.Notes;
+            c.ExpirationDate = request.ExpirationDate;
+            c.FollowUp = request.FollowUp;
+        });
+
         if (customer == null)
             return NotFound(new { error = "Customer not found" });
 
-        customer.FirstName = request.FirstName;
-        customer.LastName = request.LastName;
-        customer.Email = request.Email;
-        customer.Phone = request.Phone;
-        customer.IptvUser = request.IptvUser;
-        customer.IptvPassword = request.IptvPassword;
-        customer.Notes = request.Notes;
-        customer.ExpirationDate = request.ExpirationDate;
-        customer.FollowUp = request.FollowUp;
-
-        await _db.SaveChangesAsync();
         return Ok(customer);
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
-        var customer = await _db.Customers.FindAsync(id);
-        if (customer == null)
-            return NotFound(new { error = "Customer not found" });
+        var deleted = await _service.DeleteAsync(id);
 
-        _db.Customers.Remove(customer);
-        await _db.SaveChangesAsync();
+        if (!deleted)
+            return NotFound(new { error = "Customer not found" });
 
         return Ok(new { message = "Customer deleted" });
     }

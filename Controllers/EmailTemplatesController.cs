@@ -1,8 +1,7 @@
 using AutoMailerBackend.Auth;
-using AutoMailerBackend.Data;
 using AutoMailerBackend.Models;
+using AutoMailerBackend.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace AutoMailerBackend.Controllers;
 
@@ -12,17 +11,17 @@ namespace AutoMailerBackend.Controllers;
 [RequireRole(UserRole.Admin)]
 public class EmailTemplatesController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly EmailTemplatesService _service;
 
-    public EmailTemplatesController(AppDbContext db)
+    public EmailTemplatesController(EmailTemplatesService service)
     {
-        _db = db;
+        _service = service;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var templates = await _db.EmailTemplates.ToListAsync();
+        var templates = await _service.GetAllAsync();
 
         var result = templates.Select(t => new
         {
@@ -45,8 +44,7 @@ public class EmailTemplatesController : ControllerBase
     [HttpGet("{guid}")]
     public async Task<IActionResult> GetByGuid(Guid guid)
     {
-        var template = await _db.EmailTemplates
-            .FirstOrDefaultAsync(t => t.EmailTemplateGuid == guid);
+        var template = await _service.GetByGuidAsync(guid);
 
         if (template == null)
             return NotFound(new { error = "Template not found" });
@@ -64,8 +62,7 @@ public class EmailTemplatesController : ControllerBase
             BodyHtml = request.BodyHtml
         };
 
-        _db.EmailTemplates.Add(template);
-        await _db.SaveChangesAsync();
+        await _service.CreateAsync(template);
 
         return CreatedAtAction(nameof(GetByGuid), new { guid = template.EmailTemplateGuid }, template);
     }
@@ -73,31 +70,21 @@ public class EmailTemplatesController : ControllerBase
     [HttpPut("{guid}")]
     public async Task<IActionResult> Update(Guid guid, [FromBody] UpdateEmailTemplateRequest request)
     {
-        var template = await _db.EmailTemplates
-            .FirstOrDefaultAsync(t => t.EmailTemplateGuid == guid);
+        var template = await _service.UpdateAsync(guid, request.TemplateName, request.BodyText, request.BodyHtml);
 
         if (template == null)
             return NotFound(new { error = "Template not found" });
 
-        template.TemplateName = request.TemplateName;
-        template.BodyText = request.BodyText;
-        template.BodyHtml = request.BodyHtml;
-
-        await _db.SaveChangesAsync();
         return Ok(template);
     }
 
     [HttpDelete("{guid}")]
     public async Task<IActionResult> Delete(Guid guid)
     {
-        var template = await _db.EmailTemplates
-            .FirstOrDefaultAsync(t => t.EmailTemplateGuid == guid);
+        var deleted = await _service.DeleteAsync(guid);
 
-        if (template == null)
+        if (!deleted)
             return NotFound(new { error = "Template not found" });
-
-        _db.EmailTemplates.Remove(template);
-        await _db.SaveChangesAsync();
 
         return Ok(new { message = "Template deleted" });
     }

@@ -26,6 +26,11 @@ builder.Services.AddHttpClient<Smtp2GoClient>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<EnquiriesService>();
 builder.Services.AddScoped<LoginService>();
+builder.Services.AddScoped<IptvPackagesService>();
+builder.Services.AddScoped<EmailTemplatesService>();
+builder.Services.AddScoped<UsersService>();
+builder.Services.AddScoped<ReportSettingsService>();
+builder.Services.AddScoped<CustomersService>();
 builder.Services.AddHostedService<ReportWorker>();
 
 builder.Services.AddCors(options =>

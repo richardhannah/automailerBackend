@@ -1,8 +1,7 @@
 using AutoMailerBackend.Auth;
-using AutoMailerBackend.Data;
 using AutoMailerBackend.Models;
+using AutoMailerBackend.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace AutoMailerBackend.Controllers;
 
@@ -11,17 +10,17 @@ namespace AutoMailerBackend.Controllers;
 [TokenAuth]
 public class IptvPackagesController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly IptvPackagesService _service;
 
-    public IptvPackagesController(AppDbContext db)
+    public IptvPackagesController(IptvPackagesService service)
     {
-        _db = db;
+        _service = service;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var packages = await _db.IptvPackages.ToListAsync();
+        var packages = await _service.GetAllAsync();
 
         var result = packages.Select(p => new
         {
@@ -44,8 +43,7 @@ public class IptvPackagesController : ControllerBase
     [HttpGet("{guid}")]
     public async Task<IActionResult> GetByGuid(Guid guid)
     {
-        var package = await _db.IptvPackages
-            .FirstOrDefaultAsync(p => p.IptvPackageGuid == guid);
+        var package = await _service.GetByGuidAsync(guid);
 
         if (package == null)
             return NotFound(new { error = "Package not found" });
@@ -64,8 +62,7 @@ public class IptvPackagesController : ControllerBase
             BillingPeriod = request.BillingPeriod
         };
 
-        _db.IptvPackages.Add(package);
-        await _db.SaveChangesAsync();
+        await _service.CreateAsync(package);
 
         return CreatedAtAction(nameof(GetByGuid), new { guid = package.IptvPackageGuid }, package);
     }
@@ -74,17 +71,11 @@ public class IptvPackagesController : ControllerBase
     [RequireRole(UserRole.Admin)]
     public async Task<IActionResult> Update(Guid guid, [FromBody] UpdateIptvPackageRequest request)
     {
-        var package = await _db.IptvPackages
-            .FirstOrDefaultAsync(p => p.IptvPackageGuid == guid);
+        var package = await _service.UpdateAsync(guid, request.PackageName, request.Price, request.BillingPeriod);
 
         if (package == null)
             return NotFound(new { error = "Package not found" });
 
-        package.PackageName = request.PackageName;
-        package.Price = request.Price;
-        package.BillingPeriod = request.BillingPeriod;
-
-        await _db.SaveChangesAsync();
         return Ok(package);
     }
 
@@ -92,14 +83,10 @@ public class IptvPackagesController : ControllerBase
     [RequireRole(UserRole.Admin)]
     public async Task<IActionResult> Delete(Guid guid)
     {
-        var package = await _db.IptvPackages
-            .FirstOrDefaultAsync(p => p.IptvPackageGuid == guid);
+        var deleted = await _service.DeleteAsync(guid);
 
-        if (package == null)
+        if (!deleted)
             return NotFound(new { error = "Package not found" });
-
-        _db.IptvPackages.Remove(package);
-        await _db.SaveChangesAsync();
 
         return Ok(new { message = "Package deleted" });
     }

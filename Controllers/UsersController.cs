@@ -1,8 +1,7 @@
 using AutoMailerBackend.Auth;
-using AutoMailerBackend.Data;
 using AutoMailerBackend.Models;
+using AutoMailerBackend.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace AutoMailerBackend.Controllers;
 
@@ -12,55 +11,41 @@ namespace AutoMailerBackend.Controllers;
 [RequireRole(UserRole.Admin)]
 public class UsersController : ControllerBase
 {
-    private readonly AppDbContext _db;
+    private readonly UsersService _service;
 
-    public UsersController(AppDbContext db)
+    public UsersController(UsersService service)
     {
-        _db = db;
+        _service = service;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetAll()
     {
-        var users = await _db.Users
-            .Include(u => u.Login)
-            .Select(u => new
-            {
-                u.UserId,
-                u.Login.Username,
-                Role = u.Role.ToString()
-            })
-            .ToListAsync();
-
+        var users = await _service.GetAllAsync();
         return Ok(users);
     }
 
     [HttpPut("{userId}/role")]
     public async Task<IActionResult> UpdateRole(Guid userId, [FromBody] UpdateRoleRequest request)
     {
-        var user = await _db.Users.FindAsync(userId);
-        if (user == null)
+        var result = await _service.UpdateRoleAsync(userId, request.Role);
+
+        if (result == null)
             return NotFound(new { error = "User not found" });
 
-        if (!Enum.TryParse<UserRole>(request.Role, true, out var role))
-            return BadRequest(new { error = "Invalid role" });
+        if (!result.Success)
+            return BadRequest(new { error = result.Error });
 
-        user.Role = role;
-        await _db.SaveChangesAsync();
-
-        return Ok(new { userId = user.UserId, role = user.Role.ToString() });
+        return Ok(new { userId = result.UserId, role = result.Role });
     }
 
     [HttpDelete("{userId}")]
     public async Task<IActionResult> Delete(Guid userId)
     {
-        var user = await _db.Users.Include(u => u.Login).FirstOrDefaultAsync(u => u.UserId == userId);
-        if (user == null)
-            return NotFound(new { error = "User not found" });
+        var deleted = await _service.DeleteAsync(userId);
 
-        _db.Logins.Remove(user.Login);
-        _db.Users.Remove(user);
-        await _db.SaveChangesAsync();
+        if (!deleted)
+            return NotFound(new { error = "User not found" });
 
         return Ok(new { message = "User deleted" });
     }
