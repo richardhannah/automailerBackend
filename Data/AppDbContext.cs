@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<EmailTemplate> EmailTemplates => Set<EmailTemplate>();
     public DbSet<ReportingSetting> ReportingSettings => Set<ReportingSetting>();
     public DbSet<Enquiry> Enquiries => Set<Enquiry>();
+    public DbSet<IptvPackage> IptvPackages => Set<IptvPackage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -59,6 +60,13 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Email).IsRequired();
             entity.Property(e => e.Message).IsRequired();
             entity.Property(e => e.DateReceived).IsRequired();
+        });
+
+        modelBuilder.Entity<IptvPackage>(entity =>
+        {
+            entity.HasKey(p => p.IptvPackageId);
+            entity.HasIndex(p => p.IptvPackageGuid).IsUnique();
+            entity.Property(p => p.BillingPeriod).HasConversion<string>();
         });
 
         // Seed default admin user (password: admin)
