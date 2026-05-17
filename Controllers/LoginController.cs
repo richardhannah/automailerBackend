@@ -19,12 +19,23 @@ public class LoginController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
-        var result = await _loginService.LoginOrRegisterAsync(request.Username, request.Password);
+        var result = await _loginService.LoginAsync(request.Username, request.Password);
 
         if (result == null)
             return Unauthorized(new { error = "Invalid credentials" });
 
         return Ok(result);
+    }
+
+    [HttpPost("register")]
+    public async Task<IActionResult> Register([FromBody] LoginRequest request)
+    {
+        var result = await _loginService.RegisterAsync(request.Username, request.Password);
+
+        if (!result.Success)
+            return Conflict(new { error = result.Error });
+
+        return Ok(result.Response);
     }
 
     [HttpGet("me")]

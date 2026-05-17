@@ -13,25 +13,29 @@ public class LoginService
         _db = db;
     }
 
-    public async Task<LoginResponse?> LoginOrRegisterAsync(string username, string password)
+    public async Task<LoginResponse?> LoginAsync(string username, string password)
     {
         var login = await _db.Logins.Include(l => l.User).FirstOrDefaultAsync(l => l.Username == username);
 
-        if (login != null)
+        if (login == null || !PasswordHasher.Verify(password, login.Salt, login.Password))
+            return null;
+
+        login.Token = Guid.NewGuid();
+        await _db.SaveChangesAsync();
+
+        return new LoginResponse
         {
-            if (!PasswordHasher.Verify(password, login.Salt, login.Password))
-                return null;
+            Token = login.Token,
+            Username = login.Username,
+            Role = login.User.Role.ToString()
+        };
+    }
 
-            login.Token = Guid.NewGuid();
-            await _db.SaveChangesAsync();
-
-            return new LoginResponse
-            {
-                Token = login.Token,
-                Username = login.Username,
-                Role = login.User.Role.ToString()
-            };
-        }
+    public async Task<RegisterResult> RegisterAsync(string username, string password)
+    {
+        var exists = await _db.Logins.AnyAsync(l => l.Username == username);
+        if (exists)
+            return new RegisterResult { Success = false, Error = "Username already taken" };
 
         var salt = PasswordHasher.GenerateSalt();
         var hash = PasswordHasher.Hash(password, salt);
@@ -51,11 +55,15 @@ public class LoginService
         _db.Logins.Add(newLogin);
         await _db.SaveChangesAsync();
 
-        return new LoginResponse
+        return new RegisterResult
         {
-            Token = newLogin.Token,
-            Username = newLogin.Username,
-            Role = newUser.Role.ToString()
+            Success = true,
+            Response = new LoginResponse
+            {
+                Token = newLogin.Token,
+                Username = newLogin.Username,
+                Role = newUser.Role.ToString()
+            }
         };
     }
 }
@@ -65,4 +73,11 @@ public class LoginResponse
     public Guid Token { get; set; }
     public string Username { get; set; } = "";
     public string Role { get; set; } = "";
+}
+
+public class RegisterResult
+{
+    public bool Success { get; set; }
+    public string? Error { get; set; }
+    public LoginResponse? Response { get; set; }
 }
