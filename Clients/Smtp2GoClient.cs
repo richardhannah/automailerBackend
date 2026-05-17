@@ -16,7 +16,6 @@ public class Smtp2GoClient
     {
         _httpClient = httpClient;
         _httpClient.BaseAddress = new Uri("https://api.smtp2go.com");
-        _httpClient.DefaultRequestHeaders.Add("X-Smtp2go-Api-Key", settings.ApiKey);
         _httpClient.DefaultRequestHeaders.Add("accept", "application/json");
         _settings = settings;
     }
@@ -25,6 +24,7 @@ public class Smtp2GoClient
     {
         var payload = new Dictionary<string, object>
         {
+            ["api_key"] = _settings.ApiKey,
             ["sender"] = $"{_settings.SenderName} <{_settings.SenderEmail}>",
             ["to"] = new[] { $"{toName} <{toEmail}>" },
             ["subject"] = subject,
