@@ -45,6 +45,31 @@ public class SubscriptionsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("customer/{customerId}")]
+    public async Task<IActionResult> GetByCustomer(int customerId)
+    {
+        var subscriptions = await _service.GetByCustomerIdAsync(customerId);
+
+        var result = subscriptions.Select(s => new
+        {
+            s.SubscriptionId,
+            s.CustomerId,
+            s.IptvPackageId,
+            PackageName = s.IptvPackage.PackageName,
+            s.DateStarted,
+            s.DateEnded,
+            Status = s.Status.ToString(),
+            Links = new
+            {
+                Self = Url.Action(nameof(GetById), new { id = s.SubscriptionId }),
+                Update = Url.Action(nameof(Update), new { id = s.SubscriptionId }),
+                Delete = Url.Action(nameof(Delete), new { id = s.SubscriptionId })
+            }
+        });
+
+        return Ok(result);
+    }
+
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {

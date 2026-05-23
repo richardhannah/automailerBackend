@@ -22,6 +22,16 @@ public class SubscriptionsService
             .ToListAsync();
     }
 
+    public async Task<List<Subscription>> GetByCustomerIdAsync(int customerId)
+    {
+        return await _db.Subscriptions
+            .Include(s => s.Customer)
+            .Include(s => s.IptvPackage)
+            .Where(s => s.CustomerId == customerId)
+            .OrderByDescending(s => s.DateStarted)
+            .ToListAsync();
+    }
+
     public async Task<Subscription?> GetByIdAsync(int id)
     {
         return await _db.Subscriptions
@@ -81,7 +91,7 @@ public class SubscriptionsService
         }
 
         if (dateEnded.HasValue)
-            subscription.DateEnded = dateEnded.Value;
+            subscription.DateEnded = DateTime.SpecifyKind(dateEnded.Value, DateTimeKind.Utc);
 
         await _db.SaveChangesAsync();
 
