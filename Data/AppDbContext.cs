@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<IptvPackage> IptvPackages => Set<IptvPackage>();
     public DbSet<WorkflowEmailSetting> WorkflowEmailSettings => Set<WorkflowEmailSetting>();
     public DbSet<WorkflowNotificationRecipient> WorkflowNotificationRecipients => Set<WorkflowNotificationRecipient>();
+    public DbSet<Subscription> Subscriptions => Set<Subscription>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -92,6 +93,18 @@ public class AppDbContext : DbContext
             entity.HasOne(r => r.User)
                   .WithMany()
                   .HasForeignKey(r => r.UserId);
+        });
+
+        modelBuilder.Entity<Subscription>(entity =>
+        {
+            entity.HasKey(s => s.SubscriptionId);
+            entity.Property(s => s.Status).HasConversion<string>();
+            entity.HasOne(s => s.Customer)
+                  .WithMany()
+                  .HasForeignKey(s => s.CustomerId);
+            entity.HasOne(s => s.IptvPackage)
+                  .WithMany()
+                  .HasForeignKey(s => s.IptvPackageId);
         });
 
         // Seed default admin user (password: admin)

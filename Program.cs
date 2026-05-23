@@ -32,6 +32,7 @@ builder.Services.AddScoped<UsersService>();
 builder.Services.AddScoped<ReportSettingsService>();
 builder.Services.AddScoped<WorkflowEmailSettingsService>();
 builder.Services.AddScoped<CustomersService>();
+builder.Services.AddScoped<SubscriptionsService>();
 builder.Services.AddHostedService<ReportWorker>();
 
 builder.Services.AddCors(options =>
