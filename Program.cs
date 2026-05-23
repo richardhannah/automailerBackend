@@ -30,6 +30,7 @@ builder.Services.AddScoped<IptvPackagesService>();
 builder.Services.AddScoped<EmailTemplatesService>();
 builder.Services.AddScoped<UsersService>();
 builder.Services.AddScoped<ReportSettingsService>();
+builder.Services.AddScoped<WorkflowEmailSettingsService>();
 builder.Services.AddScoped<CustomersService>();
 builder.Services.AddHostedService<ReportWorker>();
 

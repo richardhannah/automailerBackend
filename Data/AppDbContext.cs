@@ -14,6 +14,8 @@ public class AppDbContext : DbContext
     public DbSet<ReportingSetting> ReportingSettings => Set<ReportingSetting>();
     public DbSet<Enquiry> Enquiries => Set<Enquiry>();
     public DbSet<IptvPackage> IptvPackages => Set<IptvPackage>();
+    public DbSet<WorkflowEmailSetting> WorkflowEmailSettings => Set<WorkflowEmailSetting>();
+    public DbSet<WorkflowNotificationRecipient> WorkflowNotificationRecipients => Set<WorkflowNotificationRecipient>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -67,6 +69,25 @@ public class AppDbContext : DbContext
             entity.HasKey(p => p.IptvPackageId);
             entity.HasIndex(p => p.IptvPackageGuid).IsUnique();
             entity.Property(p => p.BillingPeriod).HasConversion<string>();
+        });
+
+        modelBuilder.Entity<WorkflowEmailSetting>(entity =>
+        {
+            entity.HasKey(w => w.WorkflowEmailSettingId);
+            entity.HasIndex(w => new { w.WorkflowType, w.RecipientType }).IsUnique();
+            entity.HasOne(w => w.EmailTemplate)
+                  .WithMany()
+                  .HasForeignKey(w => w.EmailTemplateId)
+                  .IsRequired(false);
+        });
+
+        modelBuilder.Entity<WorkflowNotificationRecipient>(entity =>
+        {
+            entity.HasKey(r => r.WorkflowNotificationRecipientId);
+            entity.HasIndex(r => new { r.WorkflowType, r.UserId }).IsUnique();
+            entity.HasOne(r => r.User)
+                  .WithMany()
+                  .HasForeignKey(r => r.UserId);
         });
 
         // Seed default admin user (password: admin)

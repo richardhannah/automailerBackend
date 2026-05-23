@@ -3,6 +3,7 @@ using System;
 using AutoMailerBackend.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AutoMailerBackend.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260523184652_AddWorkflowEmailSettings")]
+    partial class AddWorkflowEmailSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -280,31 +283,6 @@ namespace AutoMailerBackend.Migrations
                     b.ToTable("WorkflowEmailSettings");
                 });
 
-            modelBuilder.Entity("AutoMailerBackend.Models.WorkflowNotificationRecipient", b =>
-                {
-                    b.Property<int>("WorkflowNotificationRecipientId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("WorkflowNotificationRecipientId"));
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("WorkflowType")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("WorkflowNotificationRecipientId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("WorkflowType", "UserId")
-                        .IsUnique();
-
-                    b.ToTable("WorkflowNotificationRecipients");
-                });
-
             modelBuilder.Entity("AutoMailerBackend.Models.Login", b =>
                 {
                     b.HasOne("AutoMailerBackend.Models.User", "User")
@@ -332,17 +310,6 @@ namespace AutoMailerBackend.Migrations
                         .HasForeignKey("EmailTemplateId");
 
                     b.Navigation("EmailTemplate");
-                });
-
-            modelBuilder.Entity("AutoMailerBackend.Models.WorkflowNotificationRecipient", b =>
-                {
-                    b.HasOne("AutoMailerBackend.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("AutoMailerBackend.Models.User", b =>
