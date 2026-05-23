@@ -1,16 +1,22 @@
+using AutoMailerBackend.Clients;
 using AutoMailerBackend.Data;
 using AutoMailerBackend.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace AutoMailerBackend.Services;
 
 public class SubscriptionsService
 {
     private readonly AppDbContext _db;
+    private readonly Smtp2GoClient _smtpClient;
+    private readonly ILogger<SubscriptionsService> _logger;
 
-    public SubscriptionsService(AppDbContext db)
+    public SubscriptionsService(AppDbContext db, Smtp2GoClient smtpClient, ILogger<SubscriptionsService> logger)
     {
         _db = db;
+        _smtpClient = smtpClient;
+        _logger = logger;
     }
 
     public async Task<List<Subscription>> GetAllAsync()
@@ -67,6 +73,74 @@ public class SubscriptionsService
 
         subscription = await GetByIdAsync(subscription.SubscriptionId);
         return new SubscriptionCreateResult { Success = true, Subscription = subscription };
+    }
+
+    public async Task<SubscriptionCreateResult> SubscribeAsync(Guid userId, int iptvPackageId)
+    {
+        var customer = await _db.Customers.FirstOrDefaultAsync(c => c.UserId == userId);
+        if (customer == null)
+            return new SubscriptionCreateResult { Success = false, Error = "No customer record linked to this user" };
+
+        var package = await _db.IptvPackages.FindAsync(iptvPackageId);
+        if (package == null)
+            return new SubscriptionCreateResult { Success = false, Error = "Package not found" };
+
+        var alreadySubscribed = await _db.Subscriptions
+            .AnyAsync(s => s.CustomerId == customer.CustomerId
+                        && s.IptvPackageId == iptvPackageId
+                        && s.Status != SubscriptionStatus.Cancelled);
+        if (alreadySubscribed)
+            return new SubscriptionCreateResult { Success = false, Error = "Already subscribed to this package" };
+
+        var subscription = new Subscription
+        {
+            CustomerId = customer.CustomerId,
+            IptvPackageId = iptvPackageId,
+            DateStarted = DateTime.UtcNow,
+            Status = SubscriptionStatus.Pending
+        };
+
+        _db.Subscriptions.Add(subscription);
+        await _db.SaveChangesAsync();
+
+        // Send confirmation email using Subscription workflow template
+        await SendSubscriptionEmailAsync(customer, package);
+
+        subscription = await GetByIdAsync(subscription.SubscriptionId);
+        return new SubscriptionCreateResult { Success = true, Subscription = subscription };
+    }
+
+    private async Task SendSubscriptionEmailAsync(Customer customer, IptvPackage package)
+    {
+        var setting = await _db.WorkflowEmailSettings
+            .Include(w => w.EmailTemplate)
+            .FirstOrDefaultAsync(w => w.WorkflowType == "Subscription" && w.RecipientType == "Customer");
+
+        if (setting?.EmailTemplate == null)
+            return;
+
+        var vars = new Dictionary<string, string>
+        {
+            ["customer.firstName"] = customer.FirstName,
+            ["customer.lastName"] = customer.LastName,
+            ["customer.name"] = $"{customer.FirstName} {customer.LastName}".Trim(),
+            ["customer.email"] = customer.Email,
+            ["package.name"] = package.PackageName,
+            ["package.price"] = package.Price.ToString("F2"),
+            ["package.billingPeriod"] = package.BillingPeriod == BillingPeriod.Annual ? "Annual" : "Monthly"
+        };
+
+        var subject = $"Subscription request received - {package.PackageName}";
+        var body = TemplateRenderer.Render(setting.EmailTemplate.BodyHtml, vars);
+
+        try
+        {
+            await _smtpClient.SendEmailAsync(customer.Email, customer.Email, subject, "", body);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send subscription confirmation to {Email}", customer.Email);
+        }
     }
 
     public async Task<SubscriptionUpdateResult> UpdateAsync(int id, int? iptvPackageId, string? status, DateTime? dateEnded)
