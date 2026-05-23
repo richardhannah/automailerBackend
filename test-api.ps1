@@ -586,6 +586,342 @@ if ($noTmplRpt) {
 }
 
 # ===========================================================================
+# USERS - EMAIL UPDATE
+# ===========================================================================
+
+Write-Host ""
+Write-Host "-- Users Email --------------------------------------------" -ForegroundColor Yellow
+
+# Register a user to test email update
+$emailTestUser = "emailtest_$(Get-Random -Minimum 10000 -Maximum 99999)"
+$emailRegResult = Test-Endpoint -Name "Register user for email test" `
+    -Method POST -Url "/api/login/register" `
+    -Body @{ username = $emailTestUser; password = "Test123!"; email = "$emailTestUser@test.com" } `
+    -Validate { param($r) $r.token }
+
+$allUsersForEmail = Test-Endpoint -Name "GET users to find email test user" `
+    -Method GET -Url "/api/users" `
+    -Headers (Auth-Headers)
+
+$emailTestUserObj = $allUsersForEmail | Where-Object { $_.username -eq $emailTestUser }
+
+if ($emailTestUserObj) {
+    Test-Endpoint -Name "Update user email" `
+        -Method PUT -Url "/api/users/$($emailTestUserObj.userId)/email" `
+        -Headers (Auth-Headers) `
+        -Body @{ email = "updated@test.com" } `
+        -Validate { param($r) $r.email -eq "updated@test.com" }
+
+    Test-Endpoint -Name "Update email for non-existent user" `
+        -Method PUT -Url "/api/users/00000000-0000-0000-0000-000000099999/email" `
+        -Headers (Auth-Headers) `
+        -Body @{ email = "x@x.com" } `
+        -ExpectedStatus @(404)
+
+    # Clean up
+    Test-Endpoint -Name "Cleanup: delete email test user" `
+        -Method DELETE -Url "/api/users/$($emailTestUserObj.userId)" `
+        -Headers (Auth-Headers)
+}
+
+# ===========================================================================
+# WORKFLOW EMAIL SETTINGS
+# ===========================================================================
+
+Write-Host ""
+Write-Host "-- Workflow Email Settings --------------------------------" -ForegroundColor Yellow
+
+# Create a template for workflow settings
+$wfTmpl = Test-Endpoint -Name "Create template for workflow setting" `
+    -Method POST -Url "/api/emailtemplates" `
+    -Headers (Auth-Headers) `
+    -Body @{
+        templateName = "Workflow Template"
+        bodyText = "Hello {{customer.name}}"
+        bodyHtml = '<p>Hello {{customer.name}}</p>'
+    } `
+    -ExpectedStatus @(201)
+
+$wfTmplId = $wfTmpl.emailTemplateId
+
+Test-Endpoint -Name "GET workflow settings for Enquiry (initially empty)" `
+    -Method GET -Url "/api/WorkflowEmailSettings/Enquiry" `
+    -Headers (Auth-Headers)
+
+Test-Endpoint -Name "Upsert Enquiry/Customer workflow setting" `
+    -Method PUT -Url "/api/WorkflowEmailSettings/Enquiry/Customer" `
+    -Headers (Auth-Headers) `
+    -Body @{ emailTemplateId = $wfTmplId } `
+    -Validate { param($r) $r.workflowType -eq "Enquiry" -and $r.recipientType -eq "Customer" -and $r.emailTemplateId -eq $wfTmplId }
+
+Test-Endpoint -Name "Upsert Enquiry/Admin workflow setting" `
+    -Method PUT -Url "/api/WorkflowEmailSettings/Enquiry/Admin" `
+    -Headers (Auth-Headers) `
+    -Body @{ emailTemplateId = $wfTmplId } `
+    -Validate { param($r) $r.recipientType -eq "Admin" }
+
+Test-Endpoint -Name "GET workflow settings for Enquiry (now 2)" `
+    -Method GET -Url "/api/WorkflowEmailSettings/Enquiry" `
+    -Headers (Auth-Headers) `
+    -Validate { param($r) $r.Count -eq 2 }
+
+Test-Endpoint -Name "Upsert with invalid template" `
+    -Method PUT -Url "/api/WorkflowEmailSettings/Enquiry/Customer" `
+    -Headers (Auth-Headers) `
+    -Body @{ emailTemplateId = 999999 } `
+    -ExpectedStatus @(400)
+
+Test-Endpoint -Name "Clear workflow setting (null template)" `
+    -Method PUT -Url "/api/WorkflowEmailSettings/Enquiry/Customer" `
+    -Headers (Auth-Headers) `
+    -Body @{} `
+    -Validate { param($r) $null -eq $r.emailTemplateId }
+
+Test-Endpoint -Name "Upsert Subscription/Customer workflow setting" `
+    -Method PUT -Url "/api/WorkflowEmailSettings/Subscription/Customer" `
+    -Headers (Auth-Headers) `
+    -Body @{ emailTemplateId = $wfTmplId } `
+    -Validate { param($r) $r.workflowType -eq "Subscription" }
+
+Test-Endpoint -Name "GET workflow settings without auth" `
+    -Method GET -Url "/api/WorkflowEmailSettings/Enquiry" `
+    -ExpectedStatus @(401)
+
+# -- Workflow Notification Recipients --
+
+Write-Host ""
+Write-Host "-- Workflow Notification Recipients ------------------------" -ForegroundColor Yellow
+
+# Get admin user ID
+$adminUserObj = $allUsersForEmail | Where-Object { $_.username -eq "admin" }
+$adminUserId = $adminUserObj.userId
+
+# Clean up any stale recipients first
+$staleRecipients = Test-Endpoint -Name "GET existing Enquiry recipients (cleanup)" `
+    -Method GET -Url "/api/WorkflowEmailSettings/Enquiry/recipients" `
+    -Headers (Auth-Headers)
+
+if ($staleRecipients) {
+    foreach ($rid in $staleRecipients) {
+        Test-Endpoint -Name "Cleanup: remove stale recipient $rid" `
+            -Method DELETE -Url "/api/WorkflowEmailSettings/Enquiry/recipients/$rid" `
+            -Headers (Auth-Headers)
+    }
+}
+
+Test-Endpoint -Name "GET Enquiry recipients (empty after cleanup)" `
+    -Method GET -Url "/api/WorkflowEmailSettings/Enquiry/recipients" `
+    -Headers (Auth-Headers) `
+    -Validate { param($r) $r.Count -eq 0 }
+
+Test-Endpoint -Name "Add admin as Enquiry recipient" `
+    -Method PUT -Url "/api/WorkflowEmailSettings/Enquiry/recipients/$adminUserId" `
+    -Headers (Auth-Headers) `
+    -Validate { param($r) $r.message -eq "Recipient added" }
+
+Test-Endpoint -Name "Add admin again (idempotent)" `
+    -Method PUT -Url "/api/WorkflowEmailSettings/Enquiry/recipients/$adminUserId" `
+    -Headers (Auth-Headers) `
+    -Validate { param($r) $r.message -eq "Recipient added" }
+
+$recipients = Test-Endpoint -Name "GET Enquiry recipients (now 1)" `
+    -Method GET -Url "/api/WorkflowEmailSettings/Enquiry/recipients" `
+    -Headers (Auth-Headers) `
+    -Validate { param($r) $r.Count -eq 1 }
+
+Test-Endpoint -Name "Remove admin as Enquiry recipient" `
+    -Method DELETE -Url "/api/WorkflowEmailSettings/Enquiry/recipients/$adminUserId" `
+    -Headers (Auth-Headers) `
+    -Validate { param($r) $r.message -eq "Recipient removed" }
+
+Test-Endpoint -Name "GET Enquiry recipients (back to 0)" `
+    -Method GET -Url "/api/WorkflowEmailSettings/Enquiry/recipients" `
+    -Headers (Auth-Headers) `
+    -Validate { param($r) $r.Count -eq 0 }
+
+# ===========================================================================
+# SUBSCRIPTIONS (Admin CRUD)
+# ===========================================================================
+
+Write-Host ""
+Write-Host "-- Subscriptions ------------------------------------------" -ForegroundColor Yellow
+
+# Create a customer and package for subscription tests
+$subCust = Test-Endpoint -Name "Create customer for subscription test" `
+    -Method POST -Url "/api/customers" `
+    -Headers (Auth-Headers) `
+    -Body @{
+        firstName = "Sub"; lastName = "Tester"; email = "sub@test.com"
+        iptvUser = "subtester"
+    } `
+    -ExpectedStatus @(201)
+
+$subCustId = $subCust.customerId
+
+$subPkg = Test-Endpoint -Name "Create package for subscription test" `
+    -Method POST -Url "/api/iptvpackages" `
+    -Headers (Auth-Headers) `
+    -Body @{ packageName = "Sub Test Plan"; price = 14.99; billingPeriod = 0 } `
+    -ExpectedStatus @(201)
+
+$subPkgId = $subPkg.iptvPackageId
+$subPkgGuid = $subPkg.iptvPackageGuid
+
+$subResult = Test-Endpoint -Name "Create subscription" `
+    -Method POST -Url "/api/subscriptions" `
+    -Headers (Auth-Headers) `
+    -Body @{ customerId = $subCustId; iptvPackageId = $subPkgId; status = "Pending" } `
+    -ExpectedStatus @(201) `
+    -Validate { param($r) $r.status -eq "Pending" -and $r.packageName -eq "Sub Test Plan" }
+
+$subId = $subResult.subscriptionId
+
+Test-Endpoint -Name "Create subscription with invalid customer" `
+    -Method POST -Url "/api/subscriptions" `
+    -Headers (Auth-Headers) `
+    -Body @{ customerId = 999999; iptvPackageId = $subPkgId } `
+    -ExpectedStatus @(400)
+
+Test-Endpoint -Name "Create subscription with invalid package" `
+    -Method POST -Url "/api/subscriptions" `
+    -Headers (Auth-Headers) `
+    -Body @{ customerId = $subCustId; iptvPackageId = 999999 } `
+    -ExpectedStatus @(400)
+
+Test-Endpoint -Name "GET all subscriptions" `
+    -Method GET -Url "/api/subscriptions" `
+    -Headers (Auth-Headers) `
+    -Validate { param($r) $r.Count -ge 1 }
+
+Test-Endpoint -Name "GET subscription by ID" `
+    -Method GET -Url "/api/subscriptions/$subId" `
+    -Headers (Auth-Headers) `
+    -Validate { param($r) $r.subscriptionId -eq $subId -and $r.links }
+
+Test-Endpoint -Name "GET subscriptions by customer" `
+    -Method GET -Url "/api/subscriptions/customer/$subCustId" `
+    -Headers (Auth-Headers) `
+    -Validate { param($r) $r.Count -ge 1 }
+
+Test-Endpoint -Name "Update subscription status to Subscribed" `
+    -Method PUT -Url "/api/subscriptions/$subId" `
+    -Headers (Auth-Headers) `
+    -Body @{ status = "Subscribed" } `
+    -Validate { param($r) $r.status -eq "Subscribed" }
+
+Test-Endpoint -Name "Update subscription with invalid status" `
+    -Method PUT -Url "/api/subscriptions/$subId" `
+    -Headers (Auth-Headers) `
+    -Body @{ status = "Bogus" } `
+    -ExpectedStatus @(400)
+
+Test-Endpoint -Name "GET non-existent subscription" `
+    -Method GET -Url "/api/subscriptions/999999" `
+    -Headers (Auth-Headers) `
+    -ExpectedStatus @(404)
+
+Test-Endpoint -Name "Update non-existent subscription" `
+    -Method PUT -Url "/api/subscriptions/999999" `
+    -Headers (Auth-Headers) `
+    -Body @{ status = "Cancelled" } `
+    -ExpectedStatus @(404)
+
+Test-Endpoint -Name "Delete subscription" `
+    -Method DELETE -Url "/api/subscriptions/$subId" `
+    -Headers (Auth-Headers) `
+    -Validate { param($r) $r.message -eq "Subscription deleted" }
+
+Test-Endpoint -Name "Delete non-existent subscription" `
+    -Method DELETE -Url "/api/subscriptions/999999" `
+    -Headers (Auth-Headers) `
+    -ExpectedStatus @(404)
+
+Test-Endpoint -Name "GET subscriptions without auth" `
+    -Method GET -Url "/api/subscriptions" `
+    -ExpectedStatus @(401)
+
+# ===========================================================================
+# SUBSCRIBE (User-facing endpoint)
+# ===========================================================================
+
+Write-Host ""
+Write-Host "-- Subscribe (user-facing) --------------------------------" -ForegroundColor Yellow
+
+# Register a new user, then subscribe as that user
+$subUser = "subuser_$(Get-Random -Minimum 10000 -Maximum 99999)"
+$subUserReg = Test-Endpoint -Name "Register user for subscribe test" `
+    -Method POST -Url "/api/login/register" `
+    -Body @{ username = $subUser; password = "Test123!"; email = "$subUser@test.com" } `
+    -Validate { param($r) $r.token }
+
+$subUserToken = $subUserReg.token
+$subUserHeaders = @{ "Authorization" = "Bearer $subUserToken" }
+
+Test-Endpoint -Name "Subscribe to package as user" `
+    -Method POST -Url "/api/subscribe" `
+    -Headers $subUserHeaders `
+    -Body @{ iptvPackageId = $subPkgId } `
+    -Validate { param($r) $r.status -eq "Pending" -and $r.packageName -eq "Sub Test Plan" }
+
+Test-Endpoint -Name "Subscribe to same package again (duplicate)" `
+    -Method POST -Url "/api/subscribe" `
+    -Headers $subUserHeaders `
+    -Body @{ iptvPackageId = $subPkgId } `
+    -ExpectedStatus @(400)
+
+Test-Endpoint -Name "Subscribe to non-existent package" `
+    -Method POST -Url "/api/subscribe" `
+    -Headers $subUserHeaders `
+    -Body @{ iptvPackageId = 999999 } `
+    -ExpectedStatus @(400)
+
+Test-Endpoint -Name "Subscribe without auth" `
+    -Method POST -Url "/api/subscribe" `
+    -Body @{ iptvPackageId = $subPkgId } `
+    -ExpectedStatus @(401)
+
+# Clean up: delete the test user's subscription, customer, user, and package
+$subUserAllUsers = Test-Endpoint -Name "Cleanup: GET users for subscribe cleanup" `
+    -Method GET -Url "/api/users" `
+    -Headers (Auth-Headers)
+
+$subUserObj = $subUserAllUsers | Where-Object { $_.username -eq $subUser }
+if ($subUserObj) {
+    Test-Endpoint -Name "Cleanup: delete subscribe test user" `
+        -Method DELETE -Url "/api/users/$($subUserObj.userId)" `
+        -Headers (Auth-Headers)
+}
+
+# Clean up subscription test data
+Test-Endpoint -Name "Cleanup: delete subscription test customer" `
+    -Method DELETE -Url "/api/customers/$subCustId" `
+    -Headers (Auth-Headers)
+
+Test-Endpoint -Name "Cleanup: delete subscription test package" `
+    -Method DELETE -Url "/api/iptvpackages/$subPkgGuid" `
+    -Headers (Auth-Headers)
+
+# Clean up workflow settings before deleting the template (FK constraint)
+Test-Endpoint -Name "Cleanup: clear Enquiry/Customer workflow setting" `
+    -Method PUT -Url "/api/WorkflowEmailSettings/Enquiry/Customer" `
+    -Headers (Auth-Headers) `
+    -Body @{}
+
+Test-Endpoint -Name "Cleanup: clear Enquiry/Admin workflow setting" `
+    -Method PUT -Url "/api/WorkflowEmailSettings/Enquiry/Admin" `
+    -Headers (Auth-Headers) `
+    -Body @{}
+
+Test-Endpoint -Name "Cleanup: clear Subscription/Customer workflow setting" `
+    -Method PUT -Url "/api/WorkflowEmailSettings/Subscription/Customer" `
+    -Headers (Auth-Headers) `
+    -Body @{}
+
+Test-Endpoint -Name "Cleanup: delete workflow template" `
+    -Method DELETE -Url "/api/emailtemplates/$($wfTmpl.emailTemplateGuid)" `
+    -Headers (Auth-Headers)
+
+# ===========================================================================
 # RESULTS
 # ===========================================================================
 

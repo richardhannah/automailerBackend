@@ -68,6 +68,11 @@ public class UsersService
         if (user == null)
             return false;
 
+        // Clear Customer FK before deleting the user
+        var linkedCustomers = await _db.Customers.Where(c => c.UserId == userId).ToListAsync();
+        foreach (var c in linkedCustomers)
+            c.UserId = null;
+
         _db.Logins.Remove(user.Login);
         _db.Users.Remove(user);
         await _db.SaveChangesAsync();
