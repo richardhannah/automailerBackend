@@ -41,7 +41,7 @@ public class LoginService
         var hash = PasswordHasher.Hash(password, salt);
         var userId = Guid.NewGuid();
 
-        var newUser = new User { UserId = userId, Role = UserRole.User };
+        var newUser = new User { UserId = userId, Role = UserRole.User, Email = email };
         var newLogin = new Login
         {
             UserId = userId,
@@ -56,7 +56,8 @@ public class LoginService
             FirstName = username,
             Email = email,
             Phone = phone ?? "",
-            Notes = "New customer/prospect - registered via sign-up"
+            Notes = "New customer/prospect - registered via sign-up",
+            UserId = userId
         };
 
         _db.Users.Add(newUser);

@@ -21,7 +21,12 @@ public class UsersService
             {
                 UserId = u.UserId,
                 Username = u.Login.Username,
-                Role = u.Role.ToString()
+                Role = u.Role.ToString(),
+                Email = u.Email,
+                CustomerEmail = _db.Customers
+                    .Where(c => c.UserId == u.UserId)
+                    .Select(c => c.Email)
+                    .FirstOrDefault() ?? ""
             })
             .ToListAsync();
     }
@@ -46,6 +51,17 @@ public class UsersService
         };
     }
 
+    public async Task<bool> UpdateEmailAsync(Guid userId, string email)
+    {
+        var user = await _db.Users.FindAsync(userId);
+        if (user == null)
+            return false;
+
+        user.Email = email;
+        await _db.SaveChangesAsync();
+        return true;
+    }
+
     public async Task<bool> DeleteAsync(Guid userId)
     {
         var user = await _db.Users.Include(u => u.Login).FirstOrDefaultAsync(u => u.UserId == userId);
@@ -64,6 +80,8 @@ public class UserDto
     public Guid UserId { get; set; }
     public string Username { get; set; } = "";
     public string Role { get; set; } = "";
+    public string Email { get; set; } = "";
+    public string CustomerEmail { get; set; } = "";
 }
 
 public class UserRoleResult

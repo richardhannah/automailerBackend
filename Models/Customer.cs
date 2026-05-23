@@ -13,4 +13,6 @@ public class Customer
     public string Notes { get; set; } = "";
     public DateOnly? ExpirationDate { get; set; }
     public bool FollowUp { get; set; }
+    public Guid? UserId { get; set; }
+    public User? User { get; set; }
 }

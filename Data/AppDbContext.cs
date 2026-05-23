@@ -39,6 +39,10 @@ public class AppDbContext : DbContext
             entity.HasKey(c => c.CustomerId);
             entity.HasIndex(c => c.CustomerGuid).IsUnique();
             entity.HasIndex(c => c.Email);
+            entity.HasOne(c => c.User)
+                  .WithMany()
+                  .HasForeignKey(c => c.UserId)
+                  .IsRequired(false);
         });
 
         modelBuilder.Entity<EmailTemplate>(entity =>
@@ -95,7 +99,8 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<User>().HasData(new User
         {
             UserId = adminId,
-            Role = UserRole.Admin
+            Role = UserRole.Admin,
+            Email = "admin@tellybox.local"
         });
         modelBuilder.Entity<Login>().HasData(new Login
         {

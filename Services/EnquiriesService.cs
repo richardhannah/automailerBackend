@@ -12,8 +12,6 @@ public class EnquiriesService
     private readonly Smtp2GoClient _smtpClient;
     private readonly ILogger<EnquiriesService> _logger;
 
-    private static readonly string[] NotificationRecipients = ["ron@ronmar.com.au", "fiona.hannah@pm.me"];
-
     public EnquiriesService(AppDbContext db, Smtp2GoClient smtpClient, ILogger<EnquiriesService> logger)
     {
         _db = db;
@@ -44,7 +42,8 @@ public class EnquiriesService
         _db.Enquiries.Add(enquiry);
         await _db.SaveChangesAsync();
 
-        await SendNotificationEmailsAsync(enquiry);
+        await SendCustomerConfirmationAsync(enquiry);
+        await SendAdminNotificationsAsync(enquiry);
 
         return enquiry;
     }
@@ -60,27 +59,95 @@ public class EnquiriesService
         return true;
     }
 
-    private async Task SendNotificationEmailsAsync(Enquiry enquiry)
+    private async Task SendCustomerConfirmationAsync(Enquiry enquiry)
     {
-        var subject = $"New Enquiry from {enquiry.Email}";
-        var body = $"""
-            <h2>New Enquiry Received</h2>
-            <p><strong>From:</strong> {enquiry.Email}</p>
-            <p><strong>Phone:</strong> {enquiry.PhoneNumber ?? "Not provided"}</p>
-            <p><strong>Date:</strong> {enquiry.DateReceived:yyyy-MM-dd HH:mm} UTC</p>
-            <hr>
-            <p>{enquiry.Message}</p>
-            """;
+        var setting = await _db.WorkflowEmailSettings
+            .Include(w => w.EmailTemplate)
+            .FirstOrDefaultAsync(w => w.WorkflowType == "Enquiry" && w.RecipientType == "Customer");
 
-        foreach (var recipient in NotificationRecipients)
+        if (setting?.EmailTemplate == null)
+            return;
+
+        var vars = new Dictionary<string, string>
+        {
+            ["enquiry.email"] = enquiry.Email,
+            ["enquiry.phone"] = enquiry.PhoneNumber ?? "Not provided",
+            ["enquiry.message"] = enquiry.Message,
+            ["enquiry.date"] = enquiry.DateReceived.ToString("yyyy-MM-dd HH:mm")
+        };
+
+        var subject = "Thank you for your enquiry";
+        var body = TemplateRenderer.Render(setting.EmailTemplate.BodyHtml, vars);
+
+        try
+        {
+            await _smtpClient.SendEmailAsync(enquiry.Email, enquiry.Email, subject, "", body);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send customer confirmation to {Email}", enquiry.Email);
+        }
+    }
+
+    private async Task SendAdminNotificationsAsync(Enquiry enquiry)
+    {
+        var setting = await _db.WorkflowEmailSettings
+            .Include(w => w.EmailTemplate)
+            .FirstOrDefaultAsync(w => w.WorkflowType == "Enquiry" && w.RecipientType == "Admin");
+
+        var recipientUserIds = await _db.WorkflowNotificationRecipients
+            .Where(r => r.WorkflowType == "Enquiry")
+            .Select(r => r.UserId)
+            .ToListAsync();
+
+        if (recipientUserIds.Count == 0)
+            return;
+
+        var recipients = await _db.Users
+            .Where(u => recipientUserIds.Contains(u.UserId) && u.Email != "")
+            .ToListAsync();
+
+        if (recipients.Count == 0)
+            return;
+
+        var vars = new Dictionary<string, string>
+        {
+            ["enquiry.email"] = enquiry.Email,
+            ["enquiry.phone"] = enquiry.PhoneNumber ?? "Not provided",
+            ["enquiry.message"] = enquiry.Message,
+            ["enquiry.date"] = enquiry.DateReceived.ToString("yyyy-MM-dd HH:mm")
+        };
+
+        string subject;
+        string body;
+
+        if (setting?.EmailTemplate != null)
+        {
+            subject = $"New Enquiry from {enquiry.Email}";
+            body = TemplateRenderer.Render(setting.EmailTemplate.BodyHtml, vars);
+        }
+        else
+        {
+            subject = $"New Enquiry from {enquiry.Email}";
+            body = $"""
+                <h2>New Enquiry Received</h2>
+                <p><strong>From:</strong> {enquiry.Email}</p>
+                <p><strong>Phone:</strong> {enquiry.PhoneNumber ?? "Not provided"}</p>
+                <p><strong>Date:</strong> {enquiry.DateReceived:yyyy-MM-dd HH:mm} UTC</p>
+                <hr>
+                <p>{enquiry.Message}</p>
+                """;
+        }
+
+        foreach (var recipient in recipients)
         {
             try
             {
-                await _smtpClient.SendEmailAsync(recipient, recipient, subject, "", body);
+                await _smtpClient.SendEmailAsync(recipient.Email, recipient.Email, subject, "", body);
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send enquiry notification to {Recipient}", recipient);
+                _logger.LogError(ex, "Failed to send enquiry notification to {Email}", recipient.Email);
             }
         }
     }

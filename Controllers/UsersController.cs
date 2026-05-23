@@ -39,6 +39,17 @@ public class UsersController : ControllerBase
         return Ok(new { userId = result.UserId, role = result.Role });
     }
 
+    [HttpPut("{userId}/email")]
+    public async Task<IActionResult> UpdateEmail(Guid userId, [FromBody] UpdateEmailRequest request)
+    {
+        var updated = await _service.UpdateEmailAsync(userId, request.Email);
+
+        if (!updated)
+            return NotFound(new { error = "User not found" });
+
+        return Ok(new { userId, email = request.Email });
+    }
+
     [HttpDelete("{userId}")]
     public async Task<IActionResult> Delete(Guid userId)
     {
@@ -54,4 +65,9 @@ public class UsersController : ControllerBase
 public class UpdateRoleRequest
 {
     public required string Role { get; set; }
+}
+
+public class UpdateEmailRequest
+{
+    public required string Email { get; set; }
 }
