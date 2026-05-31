@@ -112,12 +112,9 @@ public class LoginService
         if (user == null)
             return false;
 
-        if (!user.EmailVerified)
-        {
-            user.EmailVerified = true;
-            await _db.SaveChangesAsync();
-        }
-
+        user.EmailVerified = true;
+        user.EmailVerificationToken = null;
+        await _db.SaveChangesAsync();
         return true;
     }
 
