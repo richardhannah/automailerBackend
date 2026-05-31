@@ -4,7 +4,8 @@
 ##############################################################################
 
 param(
-    [string]$BaseUrl = "http://localhost:5000"
+    [string]$BaseUrl = "http://localhost:5000",
+    [string]$DbContainer = "automailerbackend-db-1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -101,6 +102,37 @@ function Auth-Headers {
     return @{ "Authorization" = "Bearer $script:token" }
 }
 
+function Get-DbToken {
+    param([string]$Username, [string]$Column)
+    $sql = "SELECT `"$Column`" FROM `"Users`" u JOIN `"Logins`" l ON u.`"UserId`" = l.`"UserId`" WHERE l.`"Username`" = '$Username';"
+    $result = $sql | docker exec -i $DbContainer psql -U automailer -d automailer -t -A 2>$null
+    return ($result | Out-String).Trim()
+}
+
+function Register-AndVerify {
+    param([string]$Username, [string]$Password, [string]$Email)
+
+    # Register
+    Test-Endpoint -Name "Register $Username" `
+        -Method POST -Url "/api/login/register" `
+        -Body @{ username = $Username; password = $Password; email = $Email } `
+        -Validate { param($r) $r.username -and $r.emailVerified -eq $false }
+
+    # Get verification token from DB and verify
+    $verifyToken = Get-DbToken -Username $Username -Column "EmailVerificationToken"
+    Test-Endpoint -Name "Verify email for $Username" `
+        -Method GET -Url "/api/login/verify-email?token=$verifyToken" `
+        -Validate { param($r) $r.message -eq "Email verified successfully" }
+
+    # Login to get session token
+    $loginResult = Test-Endpoint -Name "Login as $Username" `
+        -Method POST -Url "/api/login" `
+        -Body @{ username = $Username; password = $Password } `
+        -Validate { param($r) $r.token -and $r.emailVerified -eq $true }
+
+    return $loginResult.token
+}
+
 # -- Start -------------------------------------------------------------------
 
 Write-Host ""
@@ -119,7 +151,7 @@ Write-Host "-- Login --------------------------------------------------" -Foregr
 $loginResult = Test-Endpoint -Name "Login with admin/admin" `
     -Method POST -Url "/api/login" `
     -Body @{ username = "admin"; password = "admin" } `
-    -Validate { param($r) $r.token -and $r.role -eq "Admin" }
+    -Validate { param($r) $r.token -and $r.role -eq "Admin" -and $r.emailVerified -eq $true }
 
 $script:token = $loginResult.token
 
@@ -140,23 +172,117 @@ Test-Endpoint -Name "GET /me (no token)" `
     -ExpectedStatus @(401)
 
 # ===========================================================================
-# REGISTER
+# REGISTER & EMAIL VERIFICATION
 # ===========================================================================
 
 Write-Host ""
-Write-Host "-- Register -----------------------------------------------" -ForegroundColor Yellow
+Write-Host "-- Register & Email Verification --------------------------" -ForegroundColor Yellow
 
 $testUser = "testuser_$(Get-Random -Minimum 10000 -Maximum 99999)"
 
-$regResult = Test-Endpoint -Name "Register new user" `
+$regResult = Test-Endpoint -Name "Register new user (unverified)" `
     -Method POST -Url "/api/login/register" `
     -Body @{ username = $testUser; password = "Test123!"; email = "$testUser@test.com"; phone = "1234567890" } `
-    -Validate { param($r) $r.token -and $r.username -eq $testUser }
+    -Validate { param($r) $r.username -eq $testUser -and $r.emailVerified -eq $false }
 
 Test-Endpoint -Name "Register duplicate username" `
     -Method POST -Url "/api/login/register" `
     -Body @{ username = $testUser; password = "Test123!"; email = "$testUser@test.com" } `
     -ExpectedStatus @(409)
+
+# Login should return emailVerified=false for unverified user
+Test-Endpoint -Name "Login unverified user (rejected)" `
+    -Method POST -Url "/api/login" `
+    -Body @{ username = $testUser; password = "Test123!" } `
+    -Validate { param($r) $r.emailVerified -eq $false -and $r.token -eq "00000000-0000-0000-0000-000000000000" }
+
+# Verify email via token from DB
+$verifyToken = Get-DbToken -Username $testUser -Column "EmailVerificationToken"
+
+Test-Endpoint -Name "Verify email with valid token" `
+    -Method GET -Url "/api/login/verify-email?token=$verifyToken" `
+    -Validate { param($r) $r.message -eq "Email verified successfully" }
+
+Test-Endpoint -Name "Verify email with same token again (consumed)" `
+    -Method GET -Url "/api/login/verify-email?token=$verifyToken" `
+    -ExpectedStatus @(400)
+
+Test-Endpoint -Name "Verify email with invalid token" `
+    -Method GET -Url "/api/login/verify-email?token=00000000-0000-0000-0000-000000099999" `
+    -ExpectedStatus @(400)
+
+# Login should now work for verified user
+Test-Endpoint -Name "Login verified user (success)" `
+    -Method POST -Url "/api/login" `
+    -Body @{ username = $testUser; password = "Test123!" } `
+    -Validate { param($r) $r.token -and $r.emailVerified -eq $true }
+
+# Resend verification (already verified - should still return OK)
+Test-Endpoint -Name "Resend verification (already verified)" `
+    -Method POST -Url "/api/login/resend-verification" `
+    -Body @{ username = $testUser } `
+    -Validate { param($r) $r.message }
+
+# Resend verification for non-existent user (should still return OK)
+Test-Endpoint -Name "Resend verification (non-existent user)" `
+    -Method POST -Url "/api/login/resend-verification" `
+    -Body @{ username = "nonexistent_user_xyz" } `
+    -Validate { param($r) $r.message }
+
+# ===========================================================================
+# PASSWORD RESET
+# ===========================================================================
+
+Write-Host ""
+Write-Host "-- Password Reset -----------------------------------------" -ForegroundColor Yellow
+
+# Request reset for the test user
+Test-Endpoint -Name "Forgot password (valid user+email)" `
+    -Method POST -Url "/api/login/forgot-password" `
+    -Body @{ username = $testUser; email = "$testUser@test.com" } `
+    -Validate { param($r) $r.message }
+
+# Get reset token from DB
+$resetToken = Get-DbToken -Username $testUser -Column "PasswordResetToken"
+
+Test-Endpoint -Name "Reset password with valid token" `
+    -Method POST -Url "/api/login/reset-password" `
+    -Body @{ token = $resetToken; newPassword = "NewPass456!" } `
+    -Validate { param($r) $r.message -eq "Password reset successfully" }
+
+Test-Endpoint -Name "Reset password with consumed token (rejected)" `
+    -Method POST -Url "/api/login/reset-password" `
+    -Body @{ token = $resetToken; newPassword = "AnotherPass!" } `
+    -ExpectedStatus @(400)
+
+Test-Endpoint -Name "Reset password with invalid token" `
+    -Method POST -Url "/api/login/reset-password" `
+    -Body @{ token = "00000000-0000-0000-0000-000000099999"; newPassword = "X" } `
+    -ExpectedStatus @(400)
+
+# Login with new password
+Test-Endpoint -Name "Login with new password after reset" `
+    -Method POST -Url "/api/login" `
+    -Body @{ username = $testUser; password = "NewPass456!" } `
+    -Validate { param($r) $r.token -and $r.emailVerified -eq $true }
+
+# Login with old password should fail
+Test-Endpoint -Name "Login with old password (rejected)" `
+    -Method POST -Url "/api/login" `
+    -Body @{ username = $testUser; password = "Test123!" } `
+    -ExpectedStatus @(401)
+
+# Forgot password with wrong email (should still return OK - no leaking)
+Test-Endpoint -Name "Forgot password (wrong email)" `
+    -Method POST -Url "/api/login/forgot-password" `
+    -Body @{ username = $testUser; email = "wrong@email.com" } `
+    -Validate { param($r) $r.message }
+
+# Forgot password with wrong username (should still return OK)
+Test-Endpoint -Name "Forgot password (wrong username)" `
+    -Method POST -Url "/api/login/forgot-password" `
+    -Body @{ username = "nonexistent_xyz"; email = "$testUser@test.com" } `
+    -Validate { param($r) $r.message }
 
 # ===========================================================================
 # USERS
@@ -592,12 +718,12 @@ if ($noTmplRpt) {
 Write-Host ""
 Write-Host "-- Users Email --------------------------------------------" -ForegroundColor Yellow
 
-# Register a user to test email update
+# Register a user to test email update (need to verify first)
 $emailTestUser = "emailtest_$(Get-Random -Minimum 10000 -Maximum 99999)"
-$emailRegResult = Test-Endpoint -Name "Register user for email test" `
+Test-Endpoint -Name "Register user for email test" `
     -Method POST -Url "/api/login/register" `
     -Body @{ username = $emailTestUser; password = "Test123!"; email = "$emailTestUser@test.com" } `
-    -Validate { param($r) $r.token }
+    -Validate { param($r) $r.username -eq $emailTestUser }
 
 $allUsersForEmail = Test-Endpoint -Name "GET users to find email test user" `
     -Method GET -Url "/api/users" `
@@ -682,6 +808,18 @@ Test-Endpoint -Name "Upsert Subscription/Customer workflow setting" `
     -Headers (Auth-Headers) `
     -Body @{ emailTemplateId = $wfTmplId } `
     -Validate { param($r) $r.workflowType -eq "Subscription" }
+
+Test-Endpoint -Name "Upsert Registration/User workflow setting" `
+    -Method PUT -Url "/api/WorkflowEmailSettings/Registration/User" `
+    -Headers (Auth-Headers) `
+    -Body @{ emailTemplateId = $wfTmplId } `
+    -Validate { param($r) $r.workflowType -eq "Registration" -and $r.recipientType -eq "User" }
+
+Test-Endpoint -Name "Upsert PasswordReset/User workflow setting" `
+    -Method PUT -Url "/api/WorkflowEmailSettings/PasswordReset/User" `
+    -Headers (Auth-Headers) `
+    -Body @{ emailTemplateId = $wfTmplId } `
+    -Validate { param($r) $r.workflowType -eq "PasswordReset" -and $r.recipientType -eq "User" }
 
 Test-Endpoint -Name "GET workflow settings without auth" `
     -Method GET -Url "/api/WorkflowEmailSettings/Enquiry" `
@@ -847,14 +985,9 @@ Test-Endpoint -Name "GET subscriptions without auth" `
 Write-Host ""
 Write-Host "-- Subscribe (user-facing) --------------------------------" -ForegroundColor Yellow
 
-# Register a new user, then subscribe as that user
+# Register, verify, and login as a new user
 $subUser = "subuser_$(Get-Random -Minimum 10000 -Maximum 99999)"
-$subUserReg = Test-Endpoint -Name "Register user for subscribe test" `
-    -Method POST -Url "/api/login/register" `
-    -Body @{ username = $subUser; password = "Test123!"; email = "$subUser@test.com" } `
-    -Validate { param($r) $r.token }
-
-$subUserToken = $subUserReg.token
+$subUserToken = Register-AndVerify -Username $subUser -Password "Test123!" -Email "$subUser@test.com"
 $subUserHeaders = @{ "Authorization" = "Bearer $subUserToken" }
 
 Test-Endpoint -Name "Subscribe to package as user" `
@@ -914,6 +1047,16 @@ Test-Endpoint -Name "Cleanup: clear Enquiry/Admin workflow setting" `
 
 Test-Endpoint -Name "Cleanup: clear Subscription/Customer workflow setting" `
     -Method PUT -Url "/api/WorkflowEmailSettings/Subscription/Customer" `
+    -Headers (Auth-Headers) `
+    -Body @{}
+
+Test-Endpoint -Name "Cleanup: clear Registration/User workflow setting" `
+    -Method PUT -Url "/api/WorkflowEmailSettings/Registration/User" `
+    -Headers (Auth-Headers) `
+    -Body @{}
+
+Test-Endpoint -Name "Cleanup: clear PasswordReset/User workflow setting" `
+    -Method PUT -Url "/api/WorkflowEmailSettings/PasswordReset/User" `
     -Headers (Auth-Headers) `
     -Body @{}
 
