@@ -132,6 +132,94 @@ public class LoginService
         return true;
     }
 
+    public async Task RequestPasswordResetAsync(string username, string email)
+    {
+        var login = await _db.Logins.Include(l => l.User)
+            .FirstOrDefaultAsync(l => l.Username == username && l.User.Email == email);
+        if (login == null)
+            return; // Don't leak whether the account exists
+
+        var user = login.User;
+
+        var resetToken = Guid.NewGuid();
+        user.PasswordResetToken = resetToken;
+        user.PasswordResetExpiry = DateTime.UtcNow.AddHours(1);
+        await _db.SaveChangesAsync();
+
+        await SendPasswordResetEmailAsync(email, login.Username, resetToken);
+    }
+
+    public async Task<PasswordResetResult> ResetPasswordAsync(Guid token, string newPassword)
+    {
+        var user = await _db.Users.FirstOrDefaultAsync(u => u.PasswordResetToken == token);
+        if (user == null)
+            return new PasswordResetResult { Success = false, Error = "Invalid or expired reset link" };
+
+        if (user.PasswordResetExpiry < DateTime.UtcNow)
+        {
+            user.PasswordResetToken = null;
+            user.PasswordResetExpiry = null;
+            await _db.SaveChangesAsync();
+            return new PasswordResetResult { Success = false, Error = "Reset link has expired" };
+        }
+
+        var login = await _db.Logins.FirstOrDefaultAsync(l => l.UserId == user.UserId);
+        if (login == null)
+            return new PasswordResetResult { Success = false, Error = "Account not found" };
+
+        var salt = PasswordHasher.GenerateSalt();
+        var hash = PasswordHasher.Hash(newPassword, salt);
+        login.Password = hash;
+        login.Salt = salt;
+
+        user.PasswordResetToken = null;
+        user.PasswordResetExpiry = null;
+        await _db.SaveChangesAsync();
+
+        return new PasswordResetResult { Success = true };
+    }
+
+    private async Task SendPasswordResetEmailAsync(string email, string username, Guid token)
+    {
+        var resetUrl = $"{_frontendUrl}/reset-password?token={token}";
+
+        var workflowSetting = await _workflowService.GetAsync("PasswordReset", "User");
+        if (workflowSetting?.EmailTemplate != null)
+        {
+            var template = workflowSetting.EmailTemplate;
+            var vars = new Dictionary<string, string>
+            {
+                ["user.username"] = username,
+                ["user.email"] = email,
+                ["resetLink"] = resetUrl
+            };
+
+            var body = !string.IsNullOrEmpty(template.BodyHtml)
+                ? TemplateRenderer.Render(template.BodyHtml, vars)
+                : TemplateRenderer.Render(template.BodyText, vars);
+
+            await _emailService.SendEmailAsync(new SendEmailRequest
+            {
+                To = email,
+                ToName = username,
+                Subject = "Reset your password",
+                Body = body
+            });
+        }
+        else
+        {
+            var body = $"Hi {username},\n\nWe received a request to reset your password. Click the link below to set a new password:\n\n{resetUrl}\n\nThis link expires in 1 hour. If you didn't request this, you can ignore this email.";
+
+            await _emailService.SendEmailAsync(new SendEmailRequest
+            {
+                To = email,
+                ToName = username,
+                Subject = "Reset your password",
+                Body = body
+            });
+        }
+    }
+
     private async Task SendVerificationEmailAsync(string email, string username, Guid token)
     {
         var verifyUrl = $"{_frontendUrl}/verify-email?token={token}";
@@ -190,4 +278,10 @@ public class RegisterResult
     public bool Success { get; set; }
     public string? Error { get; set; }
     public LoginResponse? Response { get; set; }
+}
+
+public class PasswordResetResult
+{
+    public bool Success { get; set; }
+    public string? Error { get; set; }
 }

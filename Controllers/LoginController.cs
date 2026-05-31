@@ -57,6 +57,25 @@ public class LoginController : ControllerBase
         return Ok(new { message = "If the account exists and is unverified, a new verification email has been sent" });
     }
 
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        await _loginService.RequestPasswordResetAsync(request.Username, request.Email);
+        // Always return OK to avoid leaking whether the account exists
+        return Ok(new { message = "If the account exists, a password reset link has been sent" });
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    {
+        var result = await _loginService.ResetPasswordAsync(request.Token, request.NewPassword);
+
+        if (!result.Success)
+            return BadRequest(new { error = result.Error });
+
+        return Ok(new { message = "Password reset successfully" });
+    }
+
     [HttpGet("me")]
     [TokenAuth]
     public IActionResult Me()
@@ -89,4 +108,16 @@ public class RegisterRequest
     public required string Password { get; set; }
     public required string Email { get; set; }
     public string? Phone { get; set; }
+}
+
+public class ForgotPasswordRequest
+{
+    public required string Username { get; set; }
+    public required string Email { get; set; }
+}
+
+public class ResetPasswordRequest
+{
+    public required Guid Token { get; set; }
+    public required string NewPassword { get; set; }
 }

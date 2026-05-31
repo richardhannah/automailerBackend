@@ -7,5 +7,7 @@ public class User
     public string Email { get; set; } = "";
     public bool EmailVerified { get; set; } = false;
     public Guid? EmailVerificationToken { get; set; }
+    public Guid? PasswordResetToken { get; set; }
+    public DateTime? PasswordResetExpiry { get; set; }
     public Login Login { get; set; } = null!;
 }
