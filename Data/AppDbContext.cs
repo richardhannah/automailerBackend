@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<WorkflowNotificationRecipient> WorkflowNotificationRecipients => Set<WorkflowNotificationRecipient>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
     public DbSet<SocialMediaLink> SocialMediaLinks => Set<SocialMediaLink>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -112,6 +113,14 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(s => s.SocialMediaLinkId);
             entity.HasIndex(s => s.Platform).IsUnique();
+        });
+
+        modelBuilder.Entity<ChatMessage>(entity =>
+        {
+            entity.HasKey(m => m.ChatMessageId);
+            entity.Property(m => m.SenderName).IsRequired();
+            entity.Property(m => m.Text).IsRequired();
+            entity.Property(m => m.SentAt).IsRequired();
         });
 
         // Seed default admin user (password: admin)

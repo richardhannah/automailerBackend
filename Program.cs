@@ -1,5 +1,6 @@
 using AutoMailerBackend.Clients;
 using AutoMailerBackend.Data;
+using AutoMailerBackend.Hubs;
 using AutoMailerBackend.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -47,6 +48,11 @@ builder.Services.AddCors(options =>
     });
 });
 builder.Services.AddControllers();
+builder.Services.AddSignalR()
+    .AddJsonProtocol(options =>
+    {
+        options.PayloadSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -88,5 +94,6 @@ app.UseSwagger();
 app.UseSwaggerUI();
 
 app.MapControllers();
+app.MapHub<ChatHub>("/chatHub");
 
 app.Run();
