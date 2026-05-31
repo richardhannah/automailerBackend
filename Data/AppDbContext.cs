@@ -17,6 +17,7 @@ public class AppDbContext : DbContext
     public DbSet<WorkflowEmailSetting> WorkflowEmailSettings => Set<WorkflowEmailSetting>();
     public DbSet<WorkflowNotificationRecipient> WorkflowNotificationRecipients => Set<WorkflowNotificationRecipient>();
     public DbSet<Subscription> Subscriptions => Set<Subscription>();
+    public DbSet<SocialMediaLink> SocialMediaLinks => Set<SocialMediaLink>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -105,6 +106,12 @@ public class AppDbContext : DbContext
             entity.HasOne(s => s.IptvPackage)
                   .WithMany()
                   .HasForeignKey(s => s.IptvPackageId);
+        });
+
+        modelBuilder.Entity<SocialMediaLink>(entity =>
+        {
+            entity.HasKey(s => s.SocialMediaLinkId);
+            entity.HasIndex(s => s.Platform).IsUnique();
         });
 
         // Seed default admin user (password: admin)
