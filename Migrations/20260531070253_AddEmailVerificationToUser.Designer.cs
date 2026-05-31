@@ -3,6 +3,7 @@ using System;
 using AutoMailerBackend.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AutoMailerBackend.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260531070253_AddEmailVerificationToUser")]
+    partial class AddEmailVerificationToUser
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -79,7 +82,7 @@ namespace AutoMailerBackend.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Customers", (string)null);
+                    b.ToTable("Customers");
                 });
 
             modelBuilder.Entity("AutoMailerBackend.Models.EmailTemplate", b =>
@@ -110,7 +113,7 @@ namespace AutoMailerBackend.Migrations
                     b.HasIndex("EmailTemplateGuid")
                         .IsUnique();
 
-                    b.ToTable("EmailTemplates", (string)null);
+                    b.ToTable("EmailTemplates");
                 });
 
             modelBuilder.Entity("AutoMailerBackend.Models.Enquiry", b =>
@@ -137,7 +140,7 @@ namespace AutoMailerBackend.Migrations
 
                     b.HasKey("EnquiryId");
 
-                    b.ToTable("Enquiries", (string)null);
+                    b.ToTable("Enquiries");
                 });
 
             modelBuilder.Entity("AutoMailerBackend.Models.IptvPackage", b =>
@@ -167,7 +170,7 @@ namespace AutoMailerBackend.Migrations
                     b.HasIndex("IptvPackageGuid")
                         .IsUnique();
 
-                    b.ToTable("IptvPackages", (string)null);
+                    b.ToTable("IptvPackages");
                 });
 
             modelBuilder.Entity("AutoMailerBackend.Models.Login", b =>
@@ -195,7 +198,7 @@ namespace AutoMailerBackend.Migrations
                     b.HasIndex("Username")
                         .IsUnique();
 
-                    b.ToTable("Logins", (string)null);
+                    b.ToTable("Logins");
 
                     b.HasData(
                         new
@@ -231,7 +234,7 @@ namespace AutoMailerBackend.Migrations
 
                     b.HasIndex("EmailTemplateId");
 
-                    b.ToTable("ReportingSettings", (string)null);
+                    b.ToTable("ReportingSettings");
                 });
 
             modelBuilder.Entity("AutoMailerBackend.Models.Subscription", b =>
@@ -264,7 +267,7 @@ namespace AutoMailerBackend.Migrations
 
                     b.HasIndex("IptvPackageId");
 
-                    b.ToTable("Subscriptions", (string)null);
+                    b.ToTable("Subscriptions");
                 });
 
             modelBuilder.Entity("AutoMailerBackend.Models.User", b =>
@@ -289,7 +292,7 @@ namespace AutoMailerBackend.Migrations
 
                     b.HasKey("UserId");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
 
                     b.HasData(
                         new
@@ -327,7 +330,7 @@ namespace AutoMailerBackend.Migrations
                     b.HasIndex("WorkflowType", "RecipientType")
                         .IsUnique();
 
-                    b.ToTable("WorkflowEmailSettings", (string)null);
+                    b.ToTable("WorkflowEmailSettings");
                 });
 
             modelBuilder.Entity("AutoMailerBackend.Models.WorkflowNotificationRecipient", b =>
@@ -352,7 +355,7 @@ namespace AutoMailerBackend.Migrations
                     b.HasIndex("WorkflowType", "UserId")
                         .IsUnique();
 
-                    b.ToTable("WorkflowNotificationRecipients", (string)null);
+                    b.ToTable("WorkflowNotificationRecipients");
                 });
 
             modelBuilder.Entity("AutoMailerBackend.Models.Customer", b =>

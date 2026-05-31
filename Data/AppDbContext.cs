@@ -113,7 +113,8 @@ public class AppDbContext : DbContext
         {
             UserId = adminId,
             Role = UserRole.Admin,
-            Email = "admin@tellybox.local"
+            Email = "admin@tellybox.local",
+            EmailVerified = true
         });
         modelBuilder.Entity<Login>().HasData(new Login
         {

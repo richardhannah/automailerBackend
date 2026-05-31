@@ -38,6 +38,25 @@ public class LoginController : ControllerBase
         return Ok(result.Response);
     }
 
+    [HttpGet("verify-email")]
+    public async Task<IActionResult> VerifyEmail([FromQuery] Guid token)
+    {
+        var success = await _loginService.VerifyEmailAsync(token);
+
+        if (!success)
+            return BadRequest(new { error = "Invalid or expired verification link" });
+
+        return Ok(new { message = "Email verified successfully" });
+    }
+
+    [HttpPost("resend-verification")]
+    public async Task<IActionResult> ResendVerification([FromBody] ResendVerificationRequest request)
+    {
+        await _loginService.ResendVerificationAsync(request.Username);
+        // Always return OK to avoid leaking whether the username exists
+        return Ok(new { message = "If the account exists and is unverified, a new verification email has been sent" });
+    }
+
     [HttpGet("me")]
     [TokenAuth]
     public IActionResult Me()
@@ -51,6 +70,11 @@ public class LoginController : ControllerBase
             role = user!.Role.ToString()
         });
     }
+}
+
+public class ResendVerificationRequest
+{
+    public required string Username { get; set; }
 }
 
 public class LoginRequest
