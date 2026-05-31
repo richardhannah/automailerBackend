@@ -1,4 +1,5 @@
 using AutoMailerBackend.Auth;
+using AutoMailerBackend.Clients;
 using AutoMailerBackend.Data;
 using AutoMailerBackend.Models;
 using AutoMailerBackend.Services;
@@ -15,12 +16,16 @@ public class AccountController : ControllerBase
     private readonly AppDbContext _db;
     private readonly LoginService _loginService;
     private readonly SubscriptionsService _subscriptionsService;
+    private readonly Smtp2GoClient _smtpClient;
+    private readonly ILogger<AccountController> _logger;
 
-    public AccountController(AppDbContext db, LoginService loginService, SubscriptionsService subscriptionsService)
+    public AccountController(AppDbContext db, LoginService loginService, SubscriptionsService subscriptionsService, Smtp2GoClient smtpClient, ILogger<AccountController> logger)
     {
         _db = db;
         _loginService = loginService;
         _subscriptionsService = subscriptionsService;
+        _smtpClient = smtpClient;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -83,6 +88,10 @@ public class AccountController : ControllerBase
         if (!result.Success)
             return BadRequest(new { error = result.Error });
 
+        // Send cancellation emails
+        await SendCancellationConfirmationAsync(customer, subscription.IptvPackage);
+        await SendCancellationAdminNotificationAsync(customer, subscription.IptvPackage);
+
         return Ok(new { message = "Subscription cancelled" });
     }
 
@@ -95,5 +104,103 @@ public class AccountController : ControllerBase
         await _loginService.RequestPasswordResetAsync(login!.Username, user!.Email);
 
         return Ok(new { message = "Password reset link has been sent to your email" });
+    }
+
+    private async Task SendCancellationConfirmationAsync(Customer customer, IptvPackage package)
+    {
+        var setting = await _db.WorkflowEmailSettings
+            .Include(w => w.EmailTemplate)
+            .FirstOrDefaultAsync(w => w.WorkflowType == "Cancellation" && w.RecipientType == "Customer");
+
+        if (setting?.EmailTemplate == null)
+            return;
+
+        var vars = new Dictionary<string, string>
+        {
+            ["customer.firstName"] = customer.FirstName,
+            ["customer.lastName"] = customer.LastName,
+            ["customer.name"] = $"{customer.FirstName} {customer.LastName}".Trim(),
+            ["customer.email"] = customer.Email,
+            ["package.name"] = package.PackageName,
+            ["package.price"] = package.Price.ToString("F2"),
+            ["package.billingPeriod"] = package.BillingPeriod == BillingPeriod.Annual ? "Annual" : "Monthly"
+        };
+
+        var subject = $"Subscription cancelled - {package.PackageName}";
+        var body = TemplateRenderer.Render(setting.EmailTemplate.BodyHtml, vars);
+
+        try
+        {
+            await _smtpClient.SendEmailAsync(customer.Email, customer.Email, subject, "", body);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send cancellation confirmation to {Email}", customer.Email);
+        }
+    }
+
+    private async Task SendCancellationAdminNotificationAsync(Customer customer, IptvPackage package)
+    {
+        var setting = await _db.WorkflowEmailSettings
+            .Include(w => w.EmailTemplate)
+            .FirstOrDefaultAsync(w => w.WorkflowType == "Cancellation" && w.RecipientType == "Admin");
+
+        var recipientUserIds = await _db.WorkflowNotificationRecipients
+            .Where(r => r.WorkflowType == "Cancellation")
+            .Select(r => r.UserId)
+            .ToListAsync();
+
+        if (recipientUserIds.Count == 0)
+            return;
+
+        var recipients = await _db.Users
+            .Where(u => recipientUserIds.Contains(u.UserId) && u.Email != "")
+            .ToListAsync();
+
+        if (recipients.Count == 0)
+            return;
+
+        var vars = new Dictionary<string, string>
+        {
+            ["customer.firstName"] = customer.FirstName,
+            ["customer.lastName"] = customer.LastName,
+            ["customer.name"] = $"{customer.FirstName} {customer.LastName}".Trim(),
+            ["customer.email"] = customer.Email,
+            ["package.name"] = package.PackageName,
+            ["package.price"] = package.Price.ToString("F2"),
+            ["package.billingPeriod"] = package.BillingPeriod == BillingPeriod.Annual ? "Annual" : "Monthly"
+        };
+
+        string subject;
+        string body;
+
+        if (setting?.EmailTemplate != null)
+        {
+            subject = $"Subscription cancelled - {customer.FirstName} {customer.LastName} - {package.PackageName}";
+            body = TemplateRenderer.Render(setting.EmailTemplate.BodyHtml, vars);
+        }
+        else
+        {
+            subject = $"Subscription cancelled - {customer.FirstName} {customer.LastName} - {package.PackageName}";
+            body = $"""
+                <h2>Subscription Cancellation</h2>
+                <p><strong>Customer:</strong> {customer.FirstName} {customer.LastName} ({customer.Email})</p>
+                <p><strong>Package:</strong> {package.PackageName}</p>
+                <p><strong>Price:</strong> £{package.Price:F2} / {(package.BillingPeriod == BillingPeriod.Annual ? "Annual" : "Monthly")}</p>
+                <p>This customer has cancelled their subscription and their account needs to be deactivated.</p>
+                """;
+        }
+
+        foreach (var recipient in recipients)
+        {
+            try
+            {
+                await _smtpClient.SendEmailAsync(recipient.Email, recipient.Email, subject, "", body);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send cancellation notification to {Email}", recipient.Email);
+            }
+        }
     }
 }
